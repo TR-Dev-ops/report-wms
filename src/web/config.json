@@ -1,0 +1,13 @@
+{
+  "_help": "คำอธิบายทุกช่องอยู่ใน README.md หัวข้อ 'ค่าตั้งค่า' - ช่องเกณฑ์ที่เป็น null หรือ \"\" = ยังไม่ได้ตั้ง (ไม่ใส่สี) - แก้แล้วบันทึก หน้าจอจะอ่านค่าใหม่ในรอบถัดไป (หรือกด F5)",
+  "dataFile": "data/sample.json",
+  "refreshMinutes": 5,
+  "staleGraceMinutes": 2,
+  "targetEndTime": "",
+  "forecastYellowWithinMinutes": null,
+  "remainingTonsYellow": null,
+  "remainingTonsRed": null,
+  "remainingTrucksYellow": null,
+  "remainingTrucksRed": null,
+  "sampleClock": "2026-10-30T16:56:00+07:00"
+}

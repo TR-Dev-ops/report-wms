@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>รายงานงานขาออกรายชั่วโมง</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body data-theme="dark" data-conn="loading">
+<div class="dash">
+
+  <!-- 1) แถบบน -->
+  <header class="topbar">
+    <div class="tb-title">
+      <h1>รายงานงานขาออกรายชั่วโมง</h1>
+      <div class="sub">แผนก Transportation · ปริมาณงาน Outbound วันนี้ (น้ำหนัก + จำนวนรถ)</div>
+    </div>
+    <div class="tb-block">
+      <div class="lbl">วันที่</div>
+      <div class="v" id="dateTxt">—</div>
+    </div>
+    <div class="tb-block">
+      <div class="lbl">อัปเดตล่าสุด</div>
+      <div class="v num" id="updTxt">—</div>
+      <div class="small" id="updSub">กำลังโหลดข้อมูล…</div>
+    </div>
+    <div class="tb-badges">
+      <span class="pill" id="connPill"></span>
+      <span class="sample-badge" id="sampleBadge" hidden title="ตัวเลขทั้งหมดเป็นข้อมูลตัวอย่าง (สมมติ) ยังไม่ได้ต่อ WMS จริง">ข้อมูลตัวอย่าง</span>
+      <span class="sim-badge" id="simBadge" hidden></span>
+      <button class="btn" id="themeBtn" type="button"></button>
+      <button class="btn" id="fsBtn" type="button">เต็มจอ</button>
+    </div>
+  </header>
+
+  <!-- แถบ error : ข้อมูลเก่า / ล็อกอินไม่ผ่าน / อ่านหน้าไม่ได้ -->
+  <div class="banner" id="banner" role="alert">
+    <span id="bannerIc"></span>
+    <div><div class="b-title" id="bannerTitle"></div><div class="b-detail" id="bannerDetail"></div></div>
+  </div>
+
+  <div class="content" id="content">
+    <div class="content-inner">
+
+      <!-- 2) การ์ดสรุป   3) การ์ดคาดการณ์ -->
+      <section class="kpis">
+        <div class="panel grp">
+          <div class="grp-head"><h2>น้ำหนักงานขาออก <span class="unit">(ตัน)</span></h2><span class="th-note" id="thW"></span></div>
+          <div class="tiles tiles-w">
+            <div class="tile"><div class="t-lbl">งานรวมวันนี้</div><div class="t-val" id="wTotal"></div></div>
+            <div class="tile"><div class="t-lbl">เสร็จแล้ว</div><div class="t-val" id="wDone"></div></div>
+            <div class="tile tile-rem" id="wRemTile" data-level="none"><div class="t-lbl">ค้าง ณ ตอนนี้</div><div class="t-val" id="wRem"></div><div class="chip" id="wChip"></div></div>
+          </div>
+          <div class="prog"><div class="prog-lbl">เสร็จแล้ว <b class="num" id="wPct"></b> ของน้ำหนักทั้งวัน</div><div class="bar"><div class="fill" id="wBar"></div></div></div>
+        </div>
+
+        <div class="panel grp">
+          <div class="grp-head"><h2>รถ <span class="unit">(คัน)</span></h2><span class="th-note" id="thT"></span></div>
+          <div class="tiles tiles-t">
+            <div class="tile"><div class="t-lbl">Check in</div><div class="t-val" id="tCi"></div></div>
+            <div class="tile"><div class="t-lbl">Outbound</div><div class="t-val" id="tOb"></div></div>
+            <div class="tile"><div class="t-lbl">เสร็จแล้ว</div><div class="t-val" id="tDone"></div></div>
+            <div class="tile tile-rem" id="tRemTile" data-level="none"><div class="t-lbl">ค้าง ณ ตอนนี้</div><div class="t-val" id="tRem"></div><div class="chip" id="tChip"></div></div>
+          </div>
+          <div class="prog"><div class="prog-lbl">เสร็จแล้ว <b class="num" id="tPct"></b> ของรถ Outbound</div><div class="bar"><div class="fill" id="tBar"></div></div></div>
+        </div>
+
+        <div class="panel fc" id="fcCard" data-level="none">
+          <div class="fc-head"><h2>คาดว่าจะเคลียร์งานค้างเสร็จ</h2><span class="chip" id="fcChip"></span></div>
+          <div class="fc-main">
+            <div class="fc-time"><span id="fcTime"></span><span class="fc-u" id="fcUnit">น.</span></div>
+            <div class="fc-side"><div id="fcLeft"></div><div class="fc-target" id="fcTarget"></div></div>
+          </div>
+          <div class="fc-foot"><div id="fcFormula"></div><div id="fcTruck"></div></div>
+        </div>
+      </section>
+
+      <!-- 4) กราฟรายชั่วโมง   5) ตาราง -->
+      <section class="main">
+        <div class="charts">
+          <div class="panel chart-panel">
+            <div class="c-head">
+              <h2>น้ำหนักรายชั่วโมง <span class="unit">(ตัน)</span></h2>
+              <div class="legend">
+                <span><i class="sw bg-in"></i>งานเข้า</span>
+                <span><i class="sw bg-done"></i>เสร็จ</span>
+                <span><i class="sw-line bg-rem"></i>ค้างสะสม</span>
+              </div>
+            </div>
+            <div class="plot" id="chartW"></div>
+          </div>
+          <div class="panel chart-panel">
+            <div class="c-head">
+              <h2>รถรายชั่วโมง <span class="unit">(คัน)</span></h2>
+              <div class="legend">
+                <span><i class="sw bg-ci"></i>Check in</span>
+                <span><i class="sw bg-in"></i>Outbound</span>
+                <span><i class="sw bg-done"></i>เสร็จ</span>
+              </div>
+            </div>
+            <div class="plot" id="chartT"></div>
+            <div class="axis-note">แกนนอน = ช่วงชั่วโมง เช่น 16-17 คือ 16:01–17:00 น. · ชี้ที่กราฟเพื่อดูตัวเลข</div>
+          </div>
+        </div>
+
+        <div class="panel tbl-panel">
+          <div class="c-head">
+            <h2>ตารางรายชั่วโมง</h2>
+            <div class="legend"><span>แถวกรอบสี = ชั่วโมงปัจจุบัน · แถวจาง = ยังไม่ถึงเวลา</span></div>
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th rowspan="2" class="c-per">ช่วงเวลา (น.)</th>
+                  <th rowspan="2">สัดส่วน<br>งาน %</th>
+                  <th colspan="4" class="grp-th sep">น้ำหนัก (ตัน)</th>
+                  <th colspan="5" class="grp-th sep">รถ (คัน)</th>
+                </tr>
+                <tr>
+                  <th class="sep">เข้า</th><th>เสร็จ</th><th>ค้างสะสม</th><th>% เสร็จ</th>
+                  <th class="sep">Check in</th><th>Outbound</th><th>เสร็จ</th><th>ค้างสะสม</th><th>% เสร็จ</th>
+                </tr>
+              </thead>
+              <tbody id="tbody"></tbody>
+              <tfoot id="tfoot"></tfoot>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="overlay" id="overlay"><div class="ov-box"><div class="ov-title" id="ovTitle"></div><div class="ov-sub" id="ovSub"></div></div></div>
+  </div>
+</div>
+<div class="tip" id="tip"></div>
+
+<script src="js/calc.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

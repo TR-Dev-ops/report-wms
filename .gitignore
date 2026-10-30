@@ -1,0 +1,25 @@
+# ---- รหัสผ่าน / ค่าลับ (ระยะ 2) ----
+.env
+.env.*
+!.env.example
+
+# ---- ข้อมูลจริงของบริษัท / IP ภายใน ห้ามขึ้น repo ----
+# ไฟล์ที่ระยะ 2 ผลิตจาก WMS จริง (+ ไฟล์ชั่วคราวระหว่างเขียน)
+src/web/data/latest.json
+src/web/data/*.local.json
+src/web/data/*.tmp
+src/web/data/archive/
+*.local.json
+# เอกสารภายใน: บรีฟและดีไซน์มีตัวเลขจริงจากภาพหน้าจอ WMS และ IP ภายใน (เก็บไว้ในเครื่องเท่านั้น)
+brief.md
+design/design.md
+design/mockup.html
+
+# ---- log ----
+*.log
+logs/
+
+# ---- ไฟล์ระบบ ----
+Thumbs.db
+desktop.ini
+.DS_Store
