@@ -67,11 +67,24 @@
 
         <div class="panel fc" id="fcCard" data-level="none">
           <div class="fc-head"><h2>คาดว่าจะเคลียร์งานค้างเสร็จ</h2><span class="chip" id="fcChip"></span></div>
-          <div class="fc-main">
-            <div class="fc-time"><span id="fcTime"></span><span class="fc-u" id="fcUnit">น.</span></div>
-            <div class="fc-side"><div id="fcLeft"></div><div class="fc-target" id="fcTarget"></div></div>
+          <div class="fc-scope">คาดการณ์เฉพาะงานที่เช็คอินแล้ว (ยังไม่รวมรถที่จะเข้ามาเพิ่ม)</div>
+          <div class="fc-pair">
+            <div class="fc-m" id="fcW">
+              <div class="fc-lbl">คิดจากน้ำหนัก <span class="fc-judge" id="fcWJudge" hidden>ใช้ตัดสินสี</span></div>
+              <div class="fc-time"><span id="fcWTime"></span><span class="fc-u" id="fcWUnit">น.</span></div>
+              <div class="fc-left" id="fcWLeft"></div>
+              <div class="fc-rate" id="fcWRate"></div>
+            </div>
+            <div class="fc-m" id="fcT">
+              <div class="fc-lbl">คิดจากจำนวนรถ <span class="fc-judge" id="fcTJudge" hidden>ใช้ตัดสินสี</span></div>
+              <div class="fc-time"><span id="fcTTime"></span><span class="fc-u" id="fcTUnit">น.</span></div>
+              <div class="fc-left" id="fcTLeft"></div>
+              <div class="fc-rate" id="fcTRate"></div>
+            </div>
           </div>
-          <div class="fc-foot"><div id="fcFormula"></div><div id="fcTruck"></div></div>
+          <div class="fc-tpt" id="fcTpt"></div>
+          <div class="fc-target" id="fcTarget"></div>
+          <div class="fc-foot"><div id="fcFormula"></div></div>
         </div>
       </section>
 

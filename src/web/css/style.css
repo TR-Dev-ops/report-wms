@@ -117,18 +117,24 @@ body[data-conn="stale"] .banner, body[data-conn="login"] .banner, body[data-conn
 @media (prefers-reduced-motion: reduce) { .tile-rem[data-level="crit"] { animation: none; } }
 
 /* ---------- การ์ดคาดการณ์ ---------- */
-.fc { display: flex; flex-direction: column; gap: .5rem; }
+.fc { display: flex; flex-direction: column; gap: .3rem; }
 .fc-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
 .fc-head h2 { font-size: 1.35rem; }
 #fcChip { margin-top: 0; font-size: 1.05rem; padding: .25rem .75rem; }
-.fc-main { display: flex; align-items: center; gap: 1.1rem; flex-wrap: wrap; }
-.fc-time { font-size: 4.4rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.fc-time.fc-long { font-size: 3rem; }
-.fc-time .fc-u { font-size: 1.6rem; font-weight: 400; margin-left: .3rem; color: var(--ink-2); }
-.fc-side { font-size: 1.15rem; min-width: 0; }
-.fc-side #fcLeft { font-weight: 700; font-size: 1.3rem; }
-.fc-target { color: var(--ink-2); }
-.fc-foot { font-size: .88rem; color: var(--ink-2); border-top: 1px solid var(--line); padding-top: .45rem; }
+.fc-scope { font-size: .9rem; color: var(--ink-2); }
+/* 2 แบบเคียงกัน ขนาดเท่ากัน ไม่มีแบบหลัก */
+.fc-pair { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: .6rem; }
+.fc-m { background: var(--surface-2); border-radius: 8px; padding: .35rem .65rem; min-width: 0; }
+.fc-lbl { font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+.fc-judge { font-size: .72rem; font-weight: 700; padding: .05rem .45rem; border-radius: 999px; border: 1.5px solid currentColor; }
+.fc-time { font-size: 2.8rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fc-time.fc-long { font-size: 2.1rem; }
+.fc-time .fc-u { font-size: 1.15rem; font-weight: 400; margin-left: .25rem; color: var(--ink-2); }
+.fc-left { font-weight: 700; font-size: 1.05rem; }
+.fc-rate { font-size: .85rem; color: var(--ink-2); }
+.fc-tpt { font-size: .95rem; }
+.fc-target { color: var(--ink-2); font-size: .95rem; }
+.fc-foot { font-size: .85rem; color: var(--ink-2); border-top: 1px solid var(--line); padding-top: .3rem; }
 .fc-foot div + div { margin-top: .15rem; }
 .fc-foot div:empty { display: none; }
 
@@ -235,7 +241,8 @@ body[data-conn="parse"] .content-inner, body[data-conn="nofile"] .content-inner,
   .t-val { font-size: 1.9rem; }
   .tile-rem .t-val { font-size: 2.6rem; }
   .prog { flex-wrap: wrap; gap: .3rem; } .bar { flex-basis: 100%; }
-  .fc-time { font-size: 3.2rem; }
+  .fc-time { font-size: 2.5rem; }
+  .fc-time.fc-long { font-size: 1.7rem; }
   .plot { height: 16rem; }
   .tbl-wrap { overflow-x: auto; }
   tbody th, thead th.c-per, tfoot th { position: sticky; left: 0; z-index: 1; background: var(--surface); }

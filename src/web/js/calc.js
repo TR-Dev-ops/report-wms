@@ -98,31 +98,42 @@
   }
 
   /*
-   * คาดการณ์เวลาเคลียร์งาน (เจ้าของยืนยัน 2026-10-30: ใช้น้ำหนักเป็นหลัก รถเป็นบรรทัดเทียบ)
-   *   startMin  = ต้นชั่วโมงของแถวแรกที่ completeKg > 0 (แถว 09:01-10:00 -> 09:00)
+   * คาดการณ์เวลาเคลียร์งาน — 2 แบบเท่ากัน (เจ้าของตัดสินใจ 2026-10-30: ยังไม่เลือกแบบหลัก เก็บข้อมูลไว้ฟันธงภายหลัง)
+   *   startMin  = ต้นชั่วโมงของแถวแรกที่มีงานเสร็จ (completeKg > 0 หรือ truckComplete > 0)  (แถว 09:01-10:00 -> 09:00)
    *   elapsedH  = (dataMin - startMin) / 60
-   *   rate      = เสร็จรวม (ตัน) ÷ elapsedH
-   *   leftH     = ค้าง ณ ตอนนี้ (ตัน) ÷ rate
+   *   แบบน้ำหนัก: rate = เสร็จรวม (ตัน) ÷ elapsedH ; leftH = ค้าง ณ ตอนนี้ (ตัน) ÷ rate
+   *   แบบรถ    : rate = รถเสร็จรวม (คัน) ÷ elapsedH ; leftH = รถค้าง ณ ตอนนี้ (คัน) ÷ rate
    *   etaMin    = dataMin + round(leftH × 60)      (>= 1440 = หลัง 24:00)
+   *   judge     = แบบที่ etaMin ช้ากว่า (ใช้ตัดสินสีเทียบเวลาเลิกงานเป้า กันประมาทเกิน) ; เท่ากัน = 'both'
+   *   ตัน/คัน   = เสร็จ (ตัน) ÷ รถเสร็จ  และ  ค้าง (ตัน) ÷ รถค้าง  (หารศูนย์ = null)
+   * คาดการณ์เฉพาะงานที่เช็คอินแล้ว ไม่รวมรถที่จะเข้ามาเพิ่ม
    */
   function forecast(rows, totals, dataMin) {
     var firstIdx = -1;
-    for (var i = 0; i < rows.length; i++) { if (rows[i].completeKg > 0) { firstIdx = i; break; } }
-    if (firstIdx < 0 || !(totals.completeKg > 0)) return { ok: false, reason: 'no-complete' };
-    var startMin = (FIRST_HOUR + firstIdx) * 60;
-    var elapsedH = (dataMin - startMin) / 60;
-    if (!(elapsedH > 0)) return { ok: false, reason: 'no-elapsed' };
-    var rate = (totals.completeKg / 1000) / elapsedH;
-    var leftH = totals.remainingKg > 0 ? (totals.remainingKg / 1000) / rate : 0;
+    for (var i = 0; i < rows.length; i++) { if (rows[i].completeKg > 0 || rows[i].truckComplete > 0) { firstIdx = i; break; } }
     var res = {
-      ok: true, startMin: startMin, elapsedH: elapsedH, rateTph: rate, leftH: leftH,
-      etaMin: dataMin + Math.round(leftH * 60), truck: null
+      ok: false, reason: '', startMin: null, elapsedH: null, weight: null, truck: null, judge: null, judgeEtaMin: null,
+      tonsPerTruckDone: totals.truckComplete > 0 ? (totals.completeKg / 1000) / totals.truckComplete : null,
+      tonsPerTruckLeft: totals.truckRemaining > 0 ? (totals.remainingKg / 1000) / totals.truckRemaining : null
     };
-    if (totals.truckComplete > 0) {
-      var tRate = totals.truckComplete / elapsedH;
-      var tLeft = totals.truckRemaining > 0 ? totals.truckRemaining / tRate : 0;
-      res.truck = { ratePerH: tRate, leftH: tLeft, etaMin: dataMin + Math.round(tLeft * 60) };
+    if (firstIdx < 0) { res.reason = 'no-complete'; return res; }
+    res.startMin = (FIRST_HOUR + firstIdx) * 60;
+    res.elapsedH = (dataMin - res.startMin) / 60;
+    if (!(res.elapsedH > 0)) { res.reason = 'no-elapsed'; return res; }
+    function one(done, left) {
+      if (!(done > 0)) return null;
+      var rate = done / res.elapsedH;
+      var leftH = left > 0 ? left / rate : 0;
+      return { ratePerH: rate, leftH: leftH, etaMin: dataMin + Math.round(leftH * 60) };
     }
+    res.weight = one(totals.completeKg / 1000, totals.remainingKg / 1000);
+    res.truck = one(totals.truckComplete, totals.truckRemaining);
+    if (!res.weight && !res.truck) { res.reason = 'no-complete'; return res; }
+    res.ok = true;
+    if (res.weight && res.truck) {
+      res.judge = res.weight.etaMin > res.truck.etaMin ? 'weight' : res.truck.etaMin > res.weight.etaMin ? 'truck' : 'both';
+    } else res.judge = res.weight ? 'weight' : 'truck';
+    res.judgeEtaMin = res.judge === 'truck' ? res.truck.etaMin : res.weight.etaMin;
     return res;
   }
 

@@ -12,8 +12,7 @@ src/web/data/archive/
 *.local.json
 # เอกสารภายใน: บรีฟและดีไซน์มีตัวเลขจริงจากภาพหน้าจอ WMS และ IP ภายใน (เก็บไว้ในเครื่องเท่านั้น)
 brief.md
-design/design.md
-design/mockup.html
+design/
 
 # ---- log ----
 *.log
@@ -23,3 +22,14 @@ logs/
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Saved WMS pages for parser development (real data)
+samples/
+
+# ---- Phase 2 fetcher ----
+# temporary files while writing latest.json (and any other temp file)
+*.tmp
+# parser test output (-HtmlFile) is src/web/data/parse-test.local.json -> covered by *.local.json
+*.env
+# forecast history written by the fetcher (real data, for later analysis) - also covered by logs/
+*.local.jsonl

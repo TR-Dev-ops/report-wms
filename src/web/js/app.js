@@ -151,7 +151,7 @@
       v.fc = C.forecast(d.rows, v.T, v.dataMin);
       v.wLevel = C.levelByThreshold(v.T.remainingKg / 1000, cfg.remainingTonsYellow, cfg.remainingTonsRed);
       v.tLevel = C.levelByThreshold(v.T.truckRemaining, cfg.remainingTrucksYellow, cfg.remainingTrucksRed);
-      v.fcLevel = v.fc.ok ? C.forecastLevel(v.fc.etaMin, cfg.targetMin, cfg.forecastYellowWithinMinutes) : 'none';
+      v.fcLevel = v.fc.ok ? C.forecastLevel(v.fc.judgeEtaMin, cfg.targetMin, cfg.forecastYellowWithinMinutes) : 'none';  // ตัดสินสีด้วยแบบที่ช้ากว่า
     }
     return withPreview(v);
   }
@@ -177,7 +177,7 @@
   }
 
   function clearNumbers() {
-    ['wTotal', 'wDone', 'wRem', 'wPct', 'tCi', 'tOb', 'tDone', 'tRem', 'tPct', 'fcTime', 'fcLeft', 'fcFormula', 'fcTruck'].forEach(function (id) { $(id).textContent = ''; });
+    ['wTotal', 'wDone', 'wRem', 'wPct', 'tCi', 'tOb', 'tDone', 'tRem', 'tPct', 'fcWTime', 'fcWLeft', 'fcWRate', 'fcTTime', 'fcTLeft', 'fcTRate', 'fcTpt', 'fcFormula'].forEach(function (id) { $(id).textContent = ''; });
     $('tbody').innerHTML = ''; $('tfoot').innerHTML = '';
     $('chartW').innerHTML = ''; $('chartT').innerHTML = '';
   }
@@ -216,33 +216,42 @@
     var fc = v.fc, T = v.T, cfg = v.cfg;
     $('fcCard').setAttribute('data-level', v.fcLevel);
     $('fcChip').innerHTML = chipHtml(FC_CHIP[v.fcLevel]);
-    var timeEl = $('fcTime').parentNode;
-    if (fc.ok) {
-      var after = fc.etaMin >= 1440;
-      $('fcTime').textContent = etaText(fc.etaMin);
-      $('fcUnit').hidden = after;
-      timeEl.classList.toggle('fc-long', after);
-      $('fcLeft').textContent = T.remainingKg > 0 ? 'อีกประมาณ ' + dur(fc.leftH) : 'ไม่มีงานค้างแล้ว';
-      $('fcFormula').innerHTML = 'วิธีคิด: ค้าง ' + t1(T.remainingKg) + ' ตัน ÷ อัตราเสร็จเฉลี่ยวันนี้ <b>' + nf1.format(fc.rateTph) +
-        ' ตัน/ชม.</b> (เสร็จ ' + t1(T.completeKg) + ' ตัน ใน ' + dur(fc.elapsedH) + ' นับจาก ' + hm(fc.startMin) + ' น. ถึง ' + hm(v.dataMin) + ' น.)';
-      $('fcTruck').textContent = fc.truck
-        ? 'เทียบ: ถ้าคิดจากรถค้าง ' + nf0.format(T.truckRemaining) + ' คัน (เฉลี่ย ' + nf1.format(fc.truck.ratePerH) + ' คัน/ชม.) จะเสร็จประมาณ ' +
-          etaText(fc.truck.etaMin) + (fc.truck.etaMin >= 1440 ? '' : ' น.')
-        : '';
-    } else {
-      $('fcTime').textContent = '--:--';
-      $('fcUnit').hidden = true;
-      timeEl.classList.remove('fc-long');
-      $('fcLeft').textContent = 'ยังคำนวณไม่ได้ (วันนี้ยังไม่มีงานเสร็จ)';
-      $('fcFormula').textContent = 'วิธีคิด: ค้าง ÷ อัตราเสร็จเฉลี่ยวันนี้ (นับจากต้นชั่วโมงแรกที่มีงานเสร็จ ถึงเวลาที่ดึงข้อมูล)';
-      $('fcTruck').textContent = '';
+    var targetSet = cfg.targetMin !== null;
+    /* ทั้ง 2 แบบแสดงเท่ากัน: เวลาเสร็จ / อีกกี่ ชม. / อัตราต่อชั่วโมง */
+    function method(pre, m, remainingText, rateUnit, isJudge) {
+      var timeEl = $(pre + 'Time').parentNode;
+      $(pre + 'Judge').hidden = !(targetSet && isJudge);
+      if (m) {
+        var after = m.etaMin >= 1440;
+        $(pre + 'Time').textContent = etaText(m.etaMin);
+        $(pre + 'Unit').hidden = after;
+        timeEl.classList.toggle('fc-long', after);
+        $(pre + 'Left').textContent = m.leftH > 0 ? 'อีกประมาณ ' + dur(m.leftH) : 'ไม่มีงานค้างแล้ว';
+        $(pre + 'Rate').innerHTML = 'อัตรา <b>' + nf1.format(m.ratePerH) + ' ' + rateUnit + '/ชม.</b> · ค้าง ' + remainingText;
+      } else {
+        $(pre + 'Time').textContent = '--:--';
+        $(pre + 'Unit').hidden = true;
+        timeEl.classList.remove('fc-long');
+        $(pre + 'Left').textContent = 'ยังคำนวณไม่ได้';
+        $(pre + 'Rate').textContent = 'วันนี้ยังไม่มีงานเสร็จ';
+      }
     }
-    if (cfg.targetMin === null) {
+    var j = fc.judge;
+    method('fcW', fc.weight, t1(T.remainingKg) + ' ตัน', 'ตัน', j === 'weight' || j === 'both');
+    method('fcT', fc.truck, nf0.format(T.truckRemaining) + ' คัน', 'คัน', j === 'truck' || j === 'both');
+    var tpt = function (x) { return x === null ? '–' : nf1.format(x); };
+    $('fcTpt').innerHTML = 'ตัน/คัน เฉลี่ย: ที่เสร็จแล้ว <b>' + tpt(fc.tonsPerTruckDone) + '</b> / ที่ค้าง <b>' + tpt(fc.tonsPerTruckLeft) + '</b>';
+    $('fcFormula').textContent = fc.ok
+      ? 'วิธีคิด: ค้าง ÷ อัตราเสร็จเฉลี่ยวันนี้ (' + dur(fc.elapsedH) + ' นับจาก ' + hm(fc.startMin) + ' น. ถึง ' + hm(v.dataMin) + ' น.)'
+      : 'วิธีคิด: ค้าง ÷ อัตราเสร็จเฉลี่ยวันนี้ (นับจากต้นชั่วโมงแรกที่มีงานเสร็จ ถึงเวลาที่ดึงข้อมูล)';
+    if (!targetSet) {
       $('fcTarget').innerHTML = 'เวลาเลิกงานเป้า: <b>ยังไม่ได้ตั้ง</b> จึงยังไม่ใส่สี';
     } else {
       var x = C.optNum(cfg.forecastYellowWithinMinutes);
+      var judgeText = !fc.ok ? '' : j === 'both' ? ' · สีตาม: ทั้งสองแบบ (เวลาเท่ากัน)'
+        : ' · สีตาม: <b>' + (j === 'weight' ? 'น้ำหนัก' : 'จำนวนรถ') + '</b> (ช้ากว่า)';
       $('fcTarget').innerHTML = 'เวลาเลิกงานเป้า: <b>' + (cfg.targetMin === 1440 ? '24:00' : hm(cfg.targetMin)) + ' น.</b>' +
-        (x !== null ? ' · เหลืองเมื่อเหลือน้อยกว่า ' + nf0.format(x) + ' นาที' : '');
+        (x !== null ? ' · เหลืองถ้าเหลือ < ' + nf0.format(x) + ' นาที' : '') + judgeText;
     }
   }
 
