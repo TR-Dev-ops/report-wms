@@ -104,6 +104,15 @@
     return 'good';
   }
 
+  /* ป้าย W (เจ้าของ 2026-11-02): ตัวเลขยังเป็น Weight Final เดี่ยว ๆ แต่ถ้ามี capacity ของอาคาร W (capacity.W ในไฟล์ผัง)
+     ใช้เป็นเกณฑ์สีแบบโกดัง (densityThresholds 80/100) · ไม่มีค่า = แบบเดิม (weightThresholds, ว่าง = เทา) */
+  function weightBoardLevel(final, site, bid) {
+    if (final === null || final === undefined) return 'none';
+    var cap = capacityOf(site, bid);
+    if (cap) return levelFor(final, cap, (site && site.densityThresholds) || {});
+    return weightLevel(final, site && site.weightThresholds);
+  }
+
   /* สถานะการเชื่อมต่อ — กติกาเดียวกับหน้า 1 (calc.js connState) แต่ตรวจรูปแบบ tracking.json */
   function connState(d, nowMs, cfg) {
     if (!d || typeof d !== 'object') return { state: 'parse', ageMin: null, error: 'ไม่มีข้อมูล' };
@@ -136,21 +145,26 @@
     if (r.status === 'login_failed') return { kind: 'login', reason: r.message || '' };
     if (r.status === 'unknown_wh') return { kind: 'unknown', reason: '' };
     if (r.status !== 'ok' && r.status !== 'partial') return { kind: 'error', reason: r.message || String(r.status) };
-    if (!Array.isArray(r.loading) || !Array.isArray(r.plan)) return { kind: 'error', reason: 'format' };
     var clean = function (list) {
       return list.filter(function (o) { return o && typeof o === 'object'; }).map(function (o) {
         return { plate: typeof o.plate === 'string' ? o.plate : '', company: typeof o.company === 'string' ? o.company : '' };
       });
     };
+    if (r.kind === 'weight') {           /* ป้าย W: กลุ่มเดียว "Weight Final" */
+      if (!Array.isArray(r.weight)) return { kind: 'error', reason: 'format' };
+      var wr = clean(r.weight);
+      return { kind: wr.length ? 'data' : 'empty', reason: '', weight: true, rows: wr, loading: [], plan: [], failed: [], sample: r.mode === 'sample' };
+    }
+    if (!Array.isArray(r.loading) || !Array.isArray(r.plan)) return { kind: 'error', reason: 'format' };
     var ld = clean(r.loading), pl = clean(r.plan);
     var failed = (Array.isArray(r.failedGates) ? r.failedGates : []).filter(function (s) { return typeof s === 'string' && s; });
     if (r.status === 'partial' && !failed.length) failed = ['?'];
-    return { kind: ld.length || pl.length || failed.length ? 'data' : 'empty', reason: '', loading: ld, plan: pl, failed: failed, sample: r.mode === 'sample' };
+    return { kind: ld.length || pl.length || failed.length ? 'data' : 'empty', reason: '', weight: false, rows: [], loading: ld, plan: pl, failed: failed, sample: r.mode === 'sample' };
   }
 
   root.GateCalc = {
     optNum: optNum, parseTime: parseTime, validateTracking: validateTracking, validateSite: validateSite,
     aggregate: aggregate, capacityOf: capacityOf, pctOf: pctOf, levelFor: levelFor, weightLevel: weightLevel, connState: connState,
-    truckView: truckView
+    truckView: truckView, weightBoardLevel: weightBoardLevel
   };
 })(typeof window !== 'undefined' ? window : this);

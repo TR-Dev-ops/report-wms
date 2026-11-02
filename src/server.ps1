@@ -6,6 +6,8 @@
   - -Live : Phase 2. Serves config.json with "dataFile": "data/latest.json" and "sampleClock": ""
             (page 2 then reads data/tracking.json; an optional "trackingFile" key is rewritten too)
             (the file on disk is NOT changed, so start.cmd keeps showing sample data)
+  - GET /api/trucks?kind=weight        (page 2: owner clicked the W board) -> "weight" = Weight Final trucks,
+      1 WMS request: GetRptTrackingScheduleList gateId 0, type 'W' (same rules as below)
   - GET /api/trucks?wh=<building id>   (page 2, P2-D: owner clicked a warehouse card)
       truck list of that warehouse: "loading" (type '') and "plan" (type 'WG'), External ID (Plate) + Company Name only
       * sample mode (no -Live): fictional plates/companies made up here, WMS is never contacted
@@ -108,14 +110,15 @@ function Get-WarehouseGates([string]$wh) {
   return , $names
 }
 
-function New-TruckAnswer([string]$mode, [string]$wh, [string]$status, [string]$message, $gates, $failed, $loading, $plan) {
+function New-TruckAnswer([string]$mode, [string]$wh, [string]$status, [string]$message, $gates, $failed, $loading, $plan, [string]$kind = 'warehouse', $weight = @()) {
   $a = New-Object System.Collections.ArrayList; foreach ($x in @($gates)) { if ($null -ne $x) { [void]$a.Add($x) } }
   $f = New-Object System.Collections.ArrayList; foreach ($x in @($failed)) { if ($null -ne $x) { [void]$f.Add($x) } }
   $l = New-Object System.Collections.ArrayList; foreach ($x in @($loading)) { if ($null -ne $x) { [void]$l.Add($x) } }
   $p = New-Object System.Collections.ArrayList; foreach ($x in @($plan)) { if ($null -ne $x) { [void]$p.Add($x) } }
+  $w = New-Object System.Collections.ArrayList; foreach ($x in @($weight)) { if ($null -ne $x) { [void]$w.Add($x) } }
   return [pscustomobject][ordered]@{
-    schemaVersion = 1; mode = $mode; wh = $wh; status = $status; message = $message
-    gates = $a; failedGates = $f; loading = $l; plan = $p
+    schemaVersion = 1; mode = $mode; kind = $kind; wh = $wh; status = $status; message = $message
+    gates = $a; failedGates = $f; loading = $l; plan = $p; weight = $w
     fetchedAt = [DateTimeOffset]::Now.ToString("yyyy-MM-dd'T'HH:mm:sszzz", $Inv)
   }
 }
@@ -138,9 +141,30 @@ function Get-SampleTrucks([string]$wh, $gates) {
     }
     return , $out
   }
+  if ($wh -eq '') {                                   # Weight Final (kind=weight): one group
+    $wr = & $make 4 777
+    return New-TruckAnswer 'sample' '' 'ok' '' @() @() @() @() 'weight' $wr
+  }
   $ld = & $make ($seed % 3) $seed
   $pl = & $make (($seed % 5) + 2) ($seed + 101)
   return New-TruckAnswer 'sample' $wh 'ok' '' $gates @() $ld $pl
+}
+
+# P2-D W board: trucks of "Weight Final" = the same endpoint with gateId 0, type 'W' (ng-click on the Weight Final
+# number in the WMS Gate Tracking page). 1 request per click. No gateId needed from tracking.json.
+function Get-LiveWeight {
+  $script:Wms.Logins = 0
+  $latestFailed = $false
+  try { $lt = Read-JsonFile $LatestFile; $latestFailed = $null -ne $lt -and $lt.status -eq 'login_failed' } catch { }
+  if ($script:Wms.Blocked -or $latestFailed) { return New-TruckAnswer 'live' '' 'login_failed' 'login_blocked' @() @() @() @() 'weight' }
+  $cfg = Get-WmsCfg
+  if ($null -eq $cfg) { return New-TruckAnswer 'live' '' 'login_failed' 'env_missing' @() @() @() @() 'weight' }
+  $r = Invoke-ScheduleCall $cfg 0 'W'
+  switch ($r.kind) {
+    'ok' { return New-TruckAnswer 'live' '' 'ok' '' @() @() @() @() 'weight' $r.rows }
+    'fail' { return New-TruckAnswer 'live' '' 'error' '' @() @() @() @() 'weight' }
+    default { return New-TruckAnswer 'live' '' $r.kind '' @() @() @() @() 'weight' }
+  }
 }
 
 function Get-WmsCfg {
@@ -184,7 +208,7 @@ function Connect-WmsServer($cfg) {
 }
 
 # one gate + one type. Returns @{ kind = 'ok' | 'fail' | 'session' | 'login_failed' | 'error'; rows }
-function Invoke-ScheduleCall($cfg, [int]$gateId, [string]$type) {
+function Invoke-ScheduleCall($cfg, [int]$gateId, [string]$type) {   # type: '' | 'WG' | 'W' (gateId 0)
   if (-not $script:Wms.LoggedIn) {
     if ($script:Wms.Logins -ge 1) { return @{ kind = 'session' } }       # at most one login per click
     $c = Connect-WmsServer $cfg
@@ -258,11 +282,29 @@ function Get-LiveTrucks([string]$wh, $gates) {
 
 function Handle-Trucks($req, $res) {
   $wh = [string]$req.QueryString['wh']
+  $kind = $req.QueryString['kind']
+  $now = [DateTime]::Now
+  foreach ($k in @($script:Reuse.Keys)) { if (($now - $script:Reuse[$k].At).TotalSeconds -ge $REUSE_SEC) { $script:Reuse.Remove($k) } }
+  if ($null -ne $kind) {
+    # ?kind=weight (W board). A separate parameter, so it never clashes with a warehouse id (a building may be called "W").
+    if ($kind -cne 'weight' -or $null -ne $req.QueryString['wh']) {
+      Send $res 400 $utf8.GetBytes('{"schemaVersion":1,"status":"bad_request"}') 'application/json; charset=utf-8'; return
+    }
+    $key = '?weight'                                       # reuse key: cannot be a warehouse id (those are [A-Za-z0-9_-])
+    if ($Live -and $script:Reuse.ContainsKey($key)) {
+      Write-Line "trucks kind=weight same answer as $([int]($now - $script:Reuse[$key].At).TotalSeconds) s ago (no WMS call)"
+      Send $res 200 $script:Reuse[$key].Bytes 'application/json; charset=utf-8'; return
+    }
+    if ($Live) { $a = Get-LiveWeight } else { $a = Get-SampleTrucks '' @() }
+    $bytes = $utf8.GetBytes((ConvertTo-Json -InputObject $a -Depth 4 -Compress))
+    Write-Line ("trucks kind=weight {0} n={1}{2}{3}" -f $a.status, @($a.weight).Count, $(if ($a.message) { " ($($a.message))" } else { '' }), $(if ($Live) { '' } else { ' [sample]' }))
+    if ($Live -and $a.status -eq 'ok') { $script:Reuse[$key] = @{ At = [DateTime]::Now; Bytes = $bytes } }
+    Send $res 200 $bytes 'application/json; charset=utf-8'
+    return
+  }
   if ($wh -cnotmatch '\A[A-Za-z0-9_-]{1,32}\z') {          # \z: no trailing newline (unlike $)
     Send $res 400 $utf8.GetBytes('{"schemaVersion":1,"status":"bad_request"}') 'application/json; charset=utf-8'; return
   }
-  $now = [DateTime]::Now
-  foreach ($k in @($script:Reuse.Keys)) { if (($now - $script:Reuse[$k].At).TotalSeconds -ge $REUSE_SEC) { $script:Reuse.Remove($k) } }
   if ($Live -and $script:Reuse.ContainsKey($wh)) {
     Write-Line "trucks wh=$wh same answer as $([int]($now - $script:Reuse[$wh].At).TotalSeconds) s ago (no WMS call)"
     Send $res 200 $script:Reuse[$wh].Bytes 'application/json; charset=utf-8'; return

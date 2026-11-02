@@ -100,6 +100,22 @@
     eq('truck session', G.truckView({ schemaVersion: 1, status: 'session' }).kind, 'session');
     eq('truck login_failed', G.truckView({ schemaVersion: 1, status: 'login_failed', message: 'login_blocked' }).kind, 'login');
     eq('truck unknown warehouse', G.truckView({ schemaVersion: 1, status: 'unknown_wh' }).kind, 'unknown');
+    // W board colour: capacity of building W = colour threshold, 80/100 like warehouses (W: 5 is a made-up value, same as site.sample.json)
+    var sw = { capacity: { W: 5 }, densityThresholds: { warnPct: 80, critPct: 100 }, weightThresholds: { warn: null, crit: null } };
+    eq('W 3/5 = 60% green', G.weightBoardLevel(3, sw, 'W'), 'good');
+    eq('W 4/5 = 80% yellow (boundary)', G.weightBoardLevel(4, sw, 'W'), 'warn');
+    eq('W 5/5 = 100% red (boundary)', G.weightBoardLevel(5, sw, 'W'), 'crit');
+    eq('W 9/5 red', G.weightBoardLevel(9, sw, 'W'), 'crit');
+    eq('W 0 green', G.weightBoardLevel(0, sw, 'W'), 'good');
+    eq('W no number -> none', G.weightBoardLevel(null, sw, 'W'), 'none');
+    eq('W without capacity -> old rule (thresholds empty = none)', G.weightBoardLevel(5, { densityThresholds: sw.densityThresholds, weightThresholds: sw.weightThresholds }, 'W'), 'none');
+    eq('W without capacity, old weightThresholds still work', G.weightBoardLevel(5, { weightThresholds: { warn: 3, crit: 8 } }, 'W'), 'warn');
+    var wv = G.truckView({ schemaVersion: 1, mode: 'live', kind: 'weight', status: 'ok', weight: [{ plate: 'TST-0W0', company: 'Fake' }, null], loading: [], plan: [] });
+    eq('weight answer -> one group of rows', [wv.kind, wv.weight, wv.rows.map(function (x) { return x.plate; })], ['data', true, ['TST-0W0']]);
+    eq('weight answer, no rows -> empty', G.truckView({ schemaVersion: 1, kind: 'weight', status: 'ok', weight: [] }).kind, 'empty');
+    eq('weight answer without weight array -> error', G.truckView({ schemaVersion: 1, kind: 'weight', status: 'ok' }).kind, 'error');
+    eq('weight session', G.truckView({ schemaVersion: 1, kind: 'weight', status: 'session' }).kind, 'session');
+    eq('warehouse answer is not weight', tv.weight, false);
     eq('truck error keeps reason', G.truckView({ schemaVersion: 1, status: 'error', message: 'no_gate_ids' }), { kind: 'error', reason: 'no_gate_ids' });
     eq('truck wrong schema -> error', G.truckView({ status: 'ok', loading: [], plan: [] }).kind, 'error');
     eq('truck loading not an array -> error', G.truckView(Object.assign({}, tr, { loading: 'x' })).kind, 'error');

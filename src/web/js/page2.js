@@ -66,7 +66,10 @@
         if (!state.hashOpened) {
           state.hashOpened = true;
           var ho = hashParam('open');
-          if (ho && state.data && state.data.source === 'sample' && state.view && state.view.usable && state.view.agg.byBuilding[ho]) openPanel(ho);
+          if (ho && state.data && state.data.source === 'sample' && state.view && state.view.usable) {
+            if (ho === 'weight') { if (B.some(function (b) { return b.board === 'weight'; })) openPanel(WKEY); }   /* #open=weight = ป้าย W */
+            else if (state.view.agg.byBuilding[ho]) openPanel(ho);
+          }
         }
         state.timer = setTimeout(load, state.cfg.refreshMinutes * 60000);
       });
@@ -253,6 +256,8 @@
   var W = 0, H = 0, DPR = 1, REM = 16, C = PAL.dark, CAM = null, hits = [], gHits = [], DETAIL = false, hoverId = null, hoverCard = null;
   /* P2-D แผงรายการรถ: wh = id โกดังที่เปิดอยู่ (null = ปิด) */
   var TP = { wh: null, seq: 0, ctrl: null, view: null, fetchedAt: 0, loading: false, timers: [] };
+  /* ค่า TP.wh ของป้าย W (Weight Final) — มี "?" จึงไม่มีทางชนกับ id โกดัง (id โกดังเป็น A–Z a–z 0–9 _ -) */
+  var WKEY = '?weight';
   var L = null, B = [], BM = {};
 
   function buildScene() {
@@ -388,7 +393,7 @@
   function drawBox(it) {
     var b = it.b, h = b.h, x0 = it.x0, x1 = it.x1, z0 = it.z0, z1 = it.z1;
     var base = b.type === 'office' ? C.office : ((b.fac || b.noLabel) ? C.roofU : C.roof);
-    var hov = hoverId === b.id, sel = TP.wh === b.id;
+    var hov = hoverId === b.id, sel = TP.wh === b.id || (TP.wh === WKEY && b.board === 'weight');
     if (V.mode === '3d') {
       var c = CAM.p, k = C.sideK, faces = [];
       if (c[2] > z1) faces.push([[x0, 0, z1], [x1, 0, z1], [x1, h, z1], [x0, h, z1], k[0]]);
@@ -498,7 +503,9 @@
       if (b.board !== 'weight') return;
       var wi = v.usable && v.data ? v.data.weightIncoming : null;
       var fin = wi && typeof wi.final === 'number' ? wi.final : null;
-      var lvl = v.dim ? 'none' : G.weightLevel(fin, L.weightThresholds), lv = LV[lvl];
+      var capW = G.capacityOf(L, b.id);   /* ความจุ W = เกณฑ์สี (ตัวเลขบนป้ายยังเป็น Weight Final เดี่ยว ๆ ไม่มี "/ความจุ") */
+      var lvl = v.dim ? 'none' : G.weightBoardLevel(fin, L, b.id), lv = LV[lvl];
+      var selW = TP.wh === WKEY, hovW = hoverCard === WKEY;
       var base = P(b.la[0], b.h, b.la[1]), ba = b.boardAt || b.la, c0 = P(ba[0], 0, ba[1]);
       var w = REM * 9.2, h = REM * 3.5, x = c0[0] - w / 2, y = c0[1] - h / 2;
       ctx.beginPath(); ctx.moveTo(base[0], base[1]); ctx.lineTo(c0[0], c0[1]); ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.stroke();
@@ -519,8 +526,16 @@
       text(fin === null ? '–' : String(fin), x + w / 2, y + REM * 1.95, REM * 1.5, C.ink, '700', 'center');
       text('Weight Final', x + w / 2, y + REM * 2.95, REM * 0.65, C.ink, '700', 'center');
       ctx.restore();
-      gHits.push({ x: x, y: y, w: w, h: h, html: '<b>อาคาร W · Weight Incoming</b><div>Weight Final ' + (fin === null ? '–' : fin) + '</div>' +
-        '<div>' + (lvl === 'none' ? (v.dim ? 'ข้อมูลเก่า — ไม่ใส่สี' : 'ยังไม่ได้ตั้งเกณฑ์ (สีเทา)') : LV_TEXT[lvl]) + '</div>' });
+      if (selW || hovW) {                  /* P2-D: คลิกป้าย W ได้เหมือนป้ายโกดัง */
+        ctx.save(); rr(x - 3, y - 3, w + 6, h + 6, REM * 0.6); ctx.strokeStyle = C.sel; ctx.lineWidth = selW ? 4 : 3; ctx.stroke();
+        if (selW) text('▸', x + w + REM * 0.6, y + h / 2, REM * 1.1, C.sel, '700', 'center');
+        ctx.restore();
+      }
+      var pctW = capW && fin !== null ? ' (' + Math.round(fin / capW * 100) + '%)' : '';
+      gHits.push({ x: x, y: y, w: w, h: h, weight: true, html: '<b>อาคาร W · Weight Incoming</b><div>Weight Final ' + (fin === null ? '–' : fin) + pctW + '</div>' +
+        (capW ? '<div>เกณฑ์สี ' + capW + ' คัน (80% / 100%)</div>' : '') +
+        '<div>' + (lvl === 'none' ? (v.dim ? 'ข้อมูลเก่า — ไม่ใส่สี' : 'ยังไม่ได้ตั้งเกณฑ์ (สีเทา)') : LV_TEXT[lvl]) + '</div>' +
+        '<div class="act">คลิกเพื่อดูทะเบียนรถ Weight Final</div>' });
     });
   }
 
@@ -544,7 +559,7 @@
   }
   function hover(e) {
     var r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top, html = '', id = null, i;
-    var gh = cardAt(x, y), hc = gh && gh.bid ? gh.bid : null;
+    var gh = cardAt(x, y), hc = gh ? (gh.bid || (gh.weight ? WKEY : null)) : null;
     if (gh) html = gh.html;
     cv.style.cursor = hc ? 'pointer' : '';
     if (hc !== hoverCard) { hoverCard = hc; req(); }
@@ -553,7 +568,7 @@
         var b = hits[i].b, v = state.view, has = v && v.usable && v.agg.byBuilding[b.id];
         var capB = G.capacityOf(L, b.id); id = b.id;
         html = '<b>' + esc(b.name) + '</b>' +
-          (capB !== null && !has ? '<div>ความจุ ' + capB + ' คัน · ยังไม่มีจุดขึ้นสินค้าใน WMS</div>' : '') +
+          (capB !== null && !has && b.board !== 'weight' ? '<div>ความจุ ' + capB + ' คัน · ยังไม่มีจุดขึ้นสินค้าใน WMS</div>' : '') +
           (b.note ? '<div class="m">' + esc(b.note) + '</div>' : '') +
           (b.ownerText ? '<div class="m">เจ้าของเขียนว่า "' + esc(b.ownerText) + '"</div>' : '');
         break;
@@ -619,6 +634,7 @@
     if (wasTap) {
       var q = pos(e), g = cardAt(q.x, q.y);
       if (g && g.bid) openPanel(g.bid);
+      else if (g && g.weight) openPanel(WKEY);
       else if (TP.wh) closePanel();            /* คลิกที่ว่างบนโมเดล (ไม่โดนป้าย และไม่ได้ลาก) = ปิดแผง */
       if (e.pointerType === 'mouse') hover(e);
     }
@@ -675,10 +691,11 @@
     if (TP.wh === bid) { panelTouched(); $('popTitle').focus({ preventScroll: true }); return; }   /* โกดังเดิม: ไม่ดึงซ้ำ (มีปุ่มรีเฟรช) */
     cancelLoad();
     TP.wh = bid; TP.view = null; TP.fetchedAt = 0;
-    var nm = whName(bid);
-    $('popTag').textContent = nm;
-    $('popTitle').textContent = 'โกดัง ' + nm;
-    $('popSub').textContent = 'ประตูใน WMS: ' + (gatesOf(bid).join(', ') || '–');
+    var nm = whName(bid), isW = bid === WKEY;
+    $('popTag').textContent = isW ? 'W' : nm;
+    $('popTitle').textContent = isW ? 'W · Weight' : 'โกดัง ' + nm;
+    $('popSub').textContent = isW ? '' : 'ประตูใน WMS: ' + (gatesOf(bid).join(', ') || '–');
+    $('popSub').hidden = isW;                                            /* ป้าย W: ไม่มีบรรทัดประตู */
     pop.hidden = false;
     $('popTitle').focus({ preventScroll: true });
     panelTouched();
@@ -711,7 +728,7 @@
     var ctrl = window.AbortController ? new AbortController() : null, timedOut = false;
     TP.ctrl = ctrl;
     TP.timers.push(setTimeout(function () { timedOut = true; if (ctrl) ctrl.abort(); }, TRUCK_TIMEOUT_MS));
-    fetch('api/trucks?wh=' + encodeURIComponent(wh) + '&t=' + Date.now(), { cache: 'no-store', headers: { 'X-WMS-Report': '1' }, signal: ctrl ? ctrl.signal : undefined })
+    fetch((wh === WKEY ? 'api/trucks?kind=weight' : 'api/trucks?wh=' + encodeURIComponent(wh)) + '&t=' + Date.now(), { cache: 'no-store', headers: { 'X-WMS-Report': '1' }, signal: ctrl ? ctrl.signal : undefined })
       .then(function (res) {
         return res.text().then(function (txt) { var j = null; try { j = JSON.parse(txt); } catch (e) { /* ไม่ใช่ JSON */ } return { status: res.status, json: j }; });
       })
@@ -719,6 +736,7 @@
         if (my !== TP.seq) return;                                        /* ปิดแผง/เปลี่ยนโกดังไปแล้ว: ทิ้ง */
         finishLoad();
         var v = r.json ? G.truckView(r.json) : { kind: 'error', reason: 'http' + r.status };
+        if ((v.kind === 'data' || v.kind === 'empty') && v.weight !== (wh === WKEY)) v = { kind: 'error', reason: 'format' };   /* คำตอบไม่ตรงชนิดที่ขอ */
         TP.view = v;
         if (v.kind === 'data' || v.kind === 'empty') { TP.fetchedAt = Date.now(); renderTrucks(v); }
         else renderTruckError(v.kind, v.reason);
@@ -731,17 +749,21 @@
   }
   function finishLoad() { clearTimers(); TP.ctrl = null; setBusy(false); popBody.classList.remove('dim'); $('popBars').innerHTML = ''; }
 
-  function sumChips(a, b) { return '<div class="chip ld"><b>' + a + '</b>กำลังขึ้น</div><div class="chip pl"><b>' + b + '</b>Plan</div>'; }
+  function sumChips(a, b) {
+    if (TP.wh === WKEY) return '<div class="chip ld"><b>' + a + '</b>Weight Final</div>';
+    return '<div class="chip ld"><b>' + a + '</b>กำลังขึ้น</div><div class="chip pl"><b>' + b + '</b>Plan</div>';
+  }
   function secHead(label, color, n) {
     return '<div class="sec-h"><span class="sdot" style="background:' + color + '"></span>' + label + (n === null ? '' : ' <span class="n">' + n + ' คัน</span>') + '</div>';
   }
   function renderLoading(slow) {
     $('popTime').textContent = 'กำลังดึงข้อมูลจาก WMS…'; $('popTime').className = 'pop-time';
     $('popBars').innerHTML = ''; $('popSum').innerHTML = sumChips('–', '–');
-    popBody.innerHTML = '<div class="loader"><span class="ring"></span><span>กำลังดึงรายการรถ ' + gatesOf(TP.wh).length + ' ประตู…' +
+    var isW = TP.wh === WKEY;
+    popBody.innerHTML = '<div class="loader"><span class="ring"></span><span>กำลังดึงรายการรถ ' + (isW ? 'Weight Final' : gatesOf(TP.wh).length + ' ประตู') + '…' +
       (slow ? '<br><span class="slow">ช้ากว่าปกติ ยังรออยู่ (ตัดที่ ' + Math.round(TRUCK_TIMEOUT_MS / 1000) + ' วินาที)</span>' : '') + '</span></div>' +
-      secHead('กำลังขึ้น', 'var(--s-ci)', null) + '<div class="skel"></div><div class="skel" style="width:70%"></div>' +
-      secHead('Plan', 'var(--muted)', null) + '<div class="skel"></div><div class="skel" style="width:80%"></div><div class="skel" style="width:60%"></div>';
+      (isW ? secHead('Weight Final', 'var(--s-ci)', null) + '<div class="skel"></div><div class="skel" style="width:70%"></div><div class="skel" style="width:80%"></div>' : secHead('กำลังขึ้น', 'var(--s-ci)', null) + '<div class="skel"></div><div class="skel" style="width:70%"></div>' +
+      secHead('Plan', 'var(--muted)', null) + '<div class="skel"></div><div class="skel" style="width:80%"></div><div class="skel" style="width:60%"></div>');
   }
   function rowsHtml(list, emptyTxt) {
     if (!list.length) return '<div class="sec-empty">' + emptyTxt + '</div>';
@@ -751,12 +773,16 @@
       }).join('') + '</ul>';
   }
   function renderTrucks(v) {
-    $('popSum').innerHTML = sumChips(v.loading.length, v.plan.length);
+    $('popSum').innerHTML = v.weight ? sumChips(v.rows.length, 0) : sumChips(v.loading.length, v.plan.length);
     var bars = '';
     if (v.sample) bars += '<div class="samplebar">ข้อมูลตัวอย่าง — ทะเบียน/บริษัทสมมติ ไม่ได้ดึงจาก WMS</div>';
     if (v.failed.length) bars += '<div class="warnbar">ดึงไม่ครบ: ประตู ' + esc(v.failed.join(', ')) + ' ไม่สำเร็จ — รายการด้านล่างอาจขาด กดรีเฟรชเพื่อลองใหม่</div>';
     $('popBars').innerHTML = bars;
-    if (v.kind === 'empty') {
+    if (v.weight) {
+      popBody.innerHTML = v.kind === 'empty'
+        ? '<div class="state emp"><span class="ico">✓</span><div class="big">ตอนนี้ไม่มีรถ Weight Final</div></div>'
+        : secHead('Weight Final', 'var(--s-ci)', v.rows.length) + rowsHtml(v.rows, 'ไม่มีรถ');
+    } else if (v.kind === 'empty') {
       popBody.innerHTML = '<div class="state emp"><span class="ico">✓</span><div class="big">ตอนนี้ไม่มีรถที่โกดัง ' + esc(whName(TP.wh)) + '</div>' +
         '<div class="m">ไม่มีรถกำลังขึ้น และไม่มีรถ Plan</div></div>';
     } else {
@@ -770,7 +796,7 @@
     $('popSum').innerHTML = '';
     $('popTime').textContent = 'ดึงไม่สำเร็จเมื่อ ' + hmsMs(Date.now()); $('popTime').className = 'pop-time';
     var d = state.data, last = d ? G.parseTime(d.lastSuccessAt) : null;
-    var round = last !== null ? '<br>ตัวเลขบนป้ายโกดังยังเป็นของรอบ ' + hmMs(last) + ' น.' : '';
+    var round = last !== null ? '<br>' + (TP.wh === WKEY ? 'ตัวเลขบนป้าย W ' : 'ตัวเลขบนป้ายโกดัง') + 'ยังเป็นของรอบ ' + hmMs(last) + ' น.' : '';
     var big, m, retry = true;
     if (kind === 'session') {
       big = 'เซสชัน WMS หมดอายุ';

@@ -438,6 +438,7 @@ try {
     } catch { return @{ Code = 0 } }
   }
   $apiHdr = @{ 'X-WMS-Report' = '1' }                  # what page2.js sends
+  function WApi($s, [string]$q = 'kind=weight') { Http ("http://localhost:$($s.Port)/api/trucks?" + $q) 'GET' $apiHdr }
   function Api($s, [string]$wh) { Http ("http://localhost:$($s.Port)/api/trucks?wh=" + [Uri]::EscapeDataString($wh)) 'GET' $apiHdr }
   function Sched-Lines { if (Test-Path $reqLog) { @(Get-Content $reqLog | Where-Object { $_ -like 'POST /wms/Report/GetRptTrackingScheduleList*' }) } else { @() } }
   function Expect-Rows([string[]]$gates, [string]$type) {
@@ -470,6 +471,12 @@ try {
   $r = Http "http://localhost:$($sS.Port)/api/trucks?wh=N3" 'POST'; Check 'D2 POST /api/trucks -> 405' ($r.Code -eq 405)
   $r = Http "http://localhost:$($sS.Port)/page2.html"; Check 'D2 static files still served (page2.html 200, has the truck panel)' ($r.Code -eq 200 -and $r.Text -match 'id="pop"')
   $r = Http "http://localhost:$($sS.Port)/.env"; Check 'D2 .env still never served' ($r.Code -eq 404)
+  $r = WApi $sS
+  Check 'W1 W board, sample mode: ?kind=weight -> kind weight, one group "weight" of fictional rows, no WMS request' ($r.Code -eq 200 -and $r.J.mode -eq 'sample' -and $r.J.kind -eq 'weight' -and $r.J.status -eq 'ok' -and @($r.J.weight).Count -ge 1 -and @($r.J.loading).Count -eq 0 -and (Count-Req '') -eq 0)
+  $r = WApi $sS 'kind=Weight'; Check 'W1 kind other than "weight" -> 400' ($r.Code -eq 400)
+  $r = WApi $sS 'kind=weight&wh=N3'; Check 'W1 kind=weight together with wh -> 400' ($r.Code -eq 400)
+  $r = Http "http://localhost:$($sS.Port)/api/trucks?kind=weight"; Check 'W1 kind=weight without X-WMS-Report header -> 403' ($r.Code -eq 403)
+  $r = Api $sS 'W'; Check 'W1 a warehouse called "W" stays a warehouse (?wh=W is not the W board; sample site has no points for it -> unknown_wh)' ($r.J.status -eq 'unknown_wh' -and $r.J.kind -ne 'weight')
 
   # ---- live mode against the mock WMS
   $live1 = @('-Live', '-SiteFile', "`"$siteS`"", '-TrackingFile', "`"$trk`"", '-LatestFile', "`"$latestOk`"", '-WmsTimeoutSec', '3')
@@ -491,6 +498,13 @@ try {
   Check 'D4 same warehouse again within 10 s -> same answer from memory, no WMS request' ($r.J.fetchedAt -eq $first -and (Count-Req '') -eq 0)
   $r = Api $sL 'S1'
   Check 'D5 next warehouse reuses the session (no new login), 10 schedule calls' ($r.J.status -eq 'ok' -and (Count-Req 'POST /wms/user/login') -eq 0 -and @(Sched-Lines).Count -eq 10)
+  Set-Mode 'normal'
+  $r = WApi $sL
+  Check 'W2 live W board: exactly 1 WMS request (gateId 0, type W), rows in WMS order, no tracking gateId needed' ($r.J.kind -eq 'weight' -and $r.J.status -eq 'ok' -and ((Plates $r.J.weight) -join ',') -eq 'TST-0W0,TST-0W1,TST-0W2' -and
+    (@(Sched-Lines) -join '|') -eq 'POST /wms/Report/GetRptTrackingScheduleList gate=0 type=W' -and (Count-Req '') -eq 1) $r.Text
+  $wAt = $r.J.fetchedAt; Set-Mode 'normal'
+  $r = WApi $sL
+  Check 'W2 W board again within 10 s -> same answer from memory, no WMS request' ($r.J.fetchedAt -eq $wAt -and (Count-Req '') -eq 0)
 
   $failGate = Join-Path $state 'failgate.txt'
   [IO.File]::WriteAllText($failGate, [string]$gid['A2']); Set-Mode 'sched500'
@@ -512,6 +526,14 @@ try {
   $r = Api $sL 'N1'
   Check 'D9 session expired -> exactly one new login -> ok' ($r.J.status -eq 'ok' -and (Count-Req 'POST /wms/user/login') -eq 1 -and @(Sched-Lines).Count -eq 9) $r.Text
 
+  $sW = Start-Srv ($live1 + @('-EnvFile', "`"$envGood`""))
+  [IO.File]::WriteAllText((Join-Path $state 'failgate.txt'), '0'); Set-Mode 'sched500'
+  $r = WApi $sW
+  Check 'W3 W board, WMS answers 500 -> error (1 login, 1 call)' ($r.J.kind -eq 'weight' -and $r.J.status -eq 'error' -and (Count-Req 'POST /wms/user/login') -eq 1 -and @(Sched-Lines).Count -eq 1)
+  Set-Mode 'sched500'
+  $r = WApi $sW
+  Check 'W3 W board failure is not reused: asked again -> WMS called again (session reused, 1 call)' ($r.J.status -eq 'error' -and (Count-Req 'POST /wms/user/login') -eq 0 -and @(Sched-Lines).Count -eq 1)
+  Remove-Item (Join-Path $state 'failgate.txt')
   $sL2 = Start-Srv ($live1 + @('-EnvFile', "`"$envGood`""))
   Set-Mode 'schedlogin'
   $r = Api $sL2 'N3'
@@ -527,6 +549,8 @@ try {
   Set-Mode 'normal'
   $r = Api $sB 'N1'
   Check 'D11 after login_failed: no more login attempts (no request at all) until the server is restarted' ($r.J.status -eq 'login_failed' -and (Count-Req '') -eq 0)
+  $r = WApi $sB
+  Check 'W4 W board after login_failed -> login_failed, no request' ($r.J.kind -eq 'weight' -and $r.J.status -eq 'login_failed' -and (Count-Req '') -eq 0)
 
   $sF = Start-Srv @('-Live', '-SiteFile', "`"$siteS`"", '-TrackingFile', "`"$trk`"", '-LatestFile', "`"$latestLf`"", '-EnvFile', "`"$envGood`"")
   Set-Mode 'normal'
@@ -575,12 +599,20 @@ try {
     $dom2 = Edge-Url "http://localhost:$($sP.Port)/page2.html#open=$whP" 75000
     $popTag2 = [regex]::Match($dom2, '<aside class="pop"[^>]*>').Value
     Check 'D16 page: nobody touches the screen for 60 s -> panel closes and its list is cleared' ($popTag2 -match '\bhidden\b' -and $dom2 -notmatch '<span class="plate">')
+    $wapi = WApi $sP
+    $dom3 = Edge-Url "http://localhost:$($sP.Port)/page2.html#open=weight" 8000
+    $pop3 = [regex]::Match($dom3, '<aside class="pop"[^>]*>').Value
+    $plates3 = @([regex]::Matches($dom3, '<span class="plate">([^<]*)</span>') | ForEach-Object { [System.Net.WebUtility]::HtmlDecode($_.Groups[1].Value) })
+    $secs3 = @([regex]::Matches($dom3, 'class="sec-h">'))
+    Check 'W5 page: W board panel opens ("W · Weight", one group "Weight Final", no gate line), plates = API answer' ($pop3 -and $pop3 -notmatch '\bhidden\b' -and
+      $dom3 -match 'id="popTitle"[^>]*>W · Weight<' -and $secs3.Count -eq 1 -and $dom3 -match 'class="sec-h">.*?Weight Final' -and $dom3 -match 'id="popSub"[^>]*hidden' -and
+      ($plates3 -join ',') -eq ((@($wapi.J.weight) | ForEach-Object { $_.plate }) -join ',') -and $plates3.Count -ge 1) "plates $($plates3 -join ',')"
   } else { Write-Host '  SKIP  D15/D16 (Microsoft Edge not found)' }
 
   foreach ($s in $script:servers) { try { Stop-Process -Id $s.P.Id -Force } catch { } }
   Start-Sleep -Milliseconds 500
   $srvText = ($script:servers | ForEach-Object { if (Test-Path $_.Out) { [IO.File]::ReadAllText($_.Out, $utf8) } }) -join "`n"
-  Check 'D17 server console: one line per click like "trucks wh=N3 gates=5 ok n=..."' ($srvText -match 'trucks wh=N3 gates=5 ok n=\d+' -and $srvText -match 'trucks wh=N2 gates=5 partial n=\d+ failed=1')
+  Check 'D17 server console: one line per click like "trucks wh=N3 gates=5 ok n=..."' ($srvText -match 'trucks wh=N3 gates=5 ok n=\d+' -and $srvText -match 'trucks wh=N2 gates=5 partial n=\d+ failed=1' -and $srvText -match 'trucks kind=weight ok n=3')
   Check 'D17 server console never shows plates, company names, password or the WMS address' ($srvText -notmatch 'TST-|Freight|Haulage|ตัวอย่างขนส่ง|test-pass|wrong-pass|testuser|/wms')
   $leak = @(Get-ChildItem $tmp -Recurse -File | Where-Object { $_.FullName -notlike "$state*" -and $_.Name -notlike 'edge-*' -and $_.FullName -notlike '*edge-profile*' } |
     Where-Object { ([IO.File]::ReadAllText($_.FullName, $utf8)) -match 'TST-\d' })

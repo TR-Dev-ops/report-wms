@@ -31,7 +31,7 @@
     "K2": "S2", "K4": "S2", "K6": "S2", "K8": "S2", "L4": "S2",
     "M8": "S3", "M5": "S3", "O": "S3", "Scrap": "S3"
   },
-  "capacity": { "N1": 12, "N2": 20, "N3": 5, "N4": 8, "S1": 10, "S2": 4, "S3": 10 },
+  "capacity": { "N1": 12, "N2": 20, "N3": 5, "N4": 8, "S1": 10, "S2": 4, "S3": 10, "W": 5 },
   "densityThresholds": { "warnPct": 80, "critPct": 100 },
   "weightThresholds": { "warn": null, "crit": null },
   "cardPlacement": {}

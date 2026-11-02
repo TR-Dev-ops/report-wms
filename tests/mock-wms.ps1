@@ -11,7 +11,7 @@
     GET  /wms/Report/Tracking -> no session: 302 to /WMS/User/Login ; with session: -TrackingHtml
     POST /wms/Report/GetRptTrackingScheduleList (P2-D truck list, JSON body like the WMS Angular page sends)
          -> no session: 302 ; bad body: 400 ; else JSON array built from -ScheduleJson (fictional rows):
-            gateId g, type ''  -> (g % 4) rows, Plate "TST-<g>L<i>" ; type 'WG' -> (g % 3) + 1 rows, Plate "TST-<g>P<i>"
+            gateId 0, type 'W' (Weight Final) -> 3 rows, Plate "TST-0W<i>" ; gateId g, type ''  -> (g % 4) rows, Plate "TST-<g>L<i>" ; type 'WG' -> (g % 3) + 1 rows, Plate "TST-<g>P<i>"
          modes: schedlogin (always 302) | schedexpire (1st call of the mode: session dropped + 302)
                 sched500 / schedslow / schedbad : only the gate in <StateDir>\failgate.txt answers 500 / sleeps 4 s / HTML
   Every request is appended to <StateDir>\requests.log as "METHOD /path" (schedule calls: "... gate=<g> type=<t>")
@@ -101,7 +101,7 @@ while ($listener.IsListening) {
       $fg = ''; $ff = Join-Path $StateDir 'failgate.txt'; if (Test-Path $ff) { $fg = ([IO.File]::ReadAllText($ff)).Trim() }
       $okBody = $null -ne $sj -and [string]$req.ContentType -match '^application/json' -and
         [string]$sj.date -match '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$' -and $sj.gateId -is [int] -and
-        ($sj.type -ceq '' -or $sj.type -ceq 'WG') -and $sj.workType -ceq '' -and $sj.workStyle -ceq '' -and $sj.wheelType -is [int] -and $sj.wheelType -eq 0 -and
+        (((($sj.type -ceq '') -or ($sj.type -ceq 'WG')) -and ($sj.gateId -gt 0)) -or (($sj.type -ceq 'W') -and ($sj.gateId -eq 0))) -and $sj.workType -ceq '' -and $sj.workStyle -ceq '' -and $sj.wheelType -is [int] -and $sj.wheelType -eq 0 -and
         @($sj.PSObject.Properties).Count -eq 6
       if (-not $valid -or $mode -eq 'schedlogin') { Reply $res 302 'moved' '/WMS/User/Login' }
       elseif ($mode -eq 'schedexpire' -and $schedCount -eq 1) { $sessions.Clear(); Reply $res 302 'moved' '/WMS/User/Login' }
@@ -112,11 +112,11 @@ while ($listener.IsListening) {
         if ($mode -eq 'schedslow' -and [string]$sj.gateId -eq $fg) { Start-Sleep -Seconds 4 }
         $src = ConvertFrom-Json -InputObject ([IO.File]::ReadAllText($ScheduleJson, $utf8))   # Object[] (no @(): it would wrap the array)
         $g = [int]$sj.gateId
-        $n = $(if ($sj.type -ceq 'WG') { ($g % 3) + 1 } else { $g % 4 })
+        $n = $(if ($sj.type -ceq 'W') { 3 } elseif ($sj.type -ceq 'WG') { ($g % 3) + 1 } else { $g % 4 })
         $rows = New-Object System.Collections.ArrayList
         for ($i = 0; $i -lt $n; $i++) {
           $o = $src[($g + $i) % $src.Count] | ConvertTo-Json -Depth 3 | ConvertFrom-Json
-          $o.Plate = 'TST-' + $g + $(if ($sj.type -ceq 'WG') { 'P' } else { 'L' }) + $i
+          $o.Plate = 'TST-' + $g + $(if ($sj.type -ceq 'W') { 'W' } elseif ($sj.type -ceq 'WG') { 'P' } else { 'L' }) + $i
           [void]$rows.Add($o)
         }
         $res.StatusCode = 200; $res.ContentType = 'application/json; charset=utf-8'
