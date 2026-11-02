@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gate Tracking · โมเดลคลังสินค้า</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/page2.css">
+</head>
+<body data-theme="dark" data-conn="loading" class="page2">
+<div class="dash">
+
+  <!-- 1) แถบบน (เหมือนหน้า 1 + เมนูสลับหน้า) -->
+  <header class="topbar">
+    <div class="tb-title">
+      <h1>Gate Tracking · โมเดลคลังสินค้า</h1>
+      <div class="sub">แผนก Transportation · รถกำลังขึ้นสินค้า รวมต่อโกดัง เทียบความจุ</div>
+    </div>
+    <nav class="tabs" aria-label="สลับหน้า">
+      <a class="tab" href="index.html"><span class="pg">หน้า 1</span><span class="tl">รายงานรายชั่วโมง</span><span class="ts">รายชั่วโมง</span></a>
+      <a class="tab on" href="page2.html" aria-current="page"><span class="pg">หน้า 2</span><span class="tl">โมเดลคลังสินค้า</span><span class="ts">โมเดลคลัง</span></a>
+    </nav>
+    <div class="tb-block">
+      <div class="lbl">อัปเดตล่าสุด</div>
+      <div class="v num" id="updTxt">—</div>
+      <div class="small" id="updSub">กำลังโหลดข้อมูล…</div>
+    </div>
+    <div class="tb-badges">
+      <span class="pill" id="connPill"></span>
+      <span class="sample-badge" id="sampleBadge" hidden title="ตัวเลขทั้งหมดเป็นข้อมูลตัวอย่าง (สมมติ) ยังไม่ได้ต่อ WMS จริง">ข้อมูลตัวอย่าง</span>
+      <span class="sample-badge" id="siteBadge" hidden title="ไม่พบไฟล์ผังจริง data/site.local.json จึงแสดงผังสมมติ (ดู README ข้อ 10)">ผังตัวอย่าง</span>
+      <span class="sim-badge" id="simBadge" hidden></span>
+      <button class="btn" id="themeBtn" type="button"></button>
+      <button class="btn" id="fsBtn" type="button">เต็มจอ</button>
+    </div>
+  </header>
+
+  <!-- แถบ error : ข้อมูลเก่า / ล็อกอินไม่ผ่าน / อ่านหน้าไม่ได้ -->
+  <div class="banner" id="banner" role="alert">
+    <span id="bannerIc"></span>
+    <div><div class="b-title" id="bannerTitle"></div><div class="b-detail" id="bannerDetail"></div></div>
+  </div>
+
+  <div class="p2">
+    <!-- 2) โมเดล 3 มิติ / 2D -->
+    <section class="panel vp" id="vp" aria-label="โมเดลคลังสินค้า">
+      <canvas id="cv" role="img" aria-label="โมเดลคลังสินค้า พร้อมจำนวนรถกำลังขึ้นสินค้าต่อโกดัง"></canvas>
+      <div class="vp-head">
+        <div>
+          <h2 id="vpTitle">โมเดลคลังสินค้า 3 มิติ</h2>
+          <div class="note" id="vpNote"></div>
+        </div>
+        <div class="hint" id="hint"></div>
+      </div>
+      <div class="unm" id="unm" role="status"></div>
+      <div class="ctrl">
+        <div class="cgrp"><button class="btn btn-std" id="stdBtn" type="button" title="กลับมุมมองมาตรฐาน (สำหรับทีวี)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>มุมมองมาตรฐาน</button></div>
+        <div class="cgrp" role="group" aria-label="รูปแบบมุมมอง">
+          <button class="btn" id="m3d" type="button" aria-pressed="true">3 มิติ</button>
+          <button class="btn" id="m2d" type="button" aria-pressed="false">2D ด้านบน</button>
+        </div>
+        <div class="cgrp" role="group" aria-label="ซูมและหมุน">
+          <button class="btn" id="zIn" type="button" title="ซูมเข้า" aria-label="ซูมเข้า"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+          <button class="btn" id="zOut" type="button" title="ซูมออก" aria-label="ซูมออก"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+          <button class="btn rot" id="rL" type="button" title="หมุนซ้าย" aria-label="หมุนซ้าย"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.5-5.8"/><path d="M4 4v4h4"/></svg></button>
+          <button class="btn rot" id="rR" type="button" title="หมุนขวา" aria-label="หมุนขวา"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4h-4"/></svg></button>
+        </div>
+      </div>
+      <div class="overlay" id="overlay"><div class="ov-box"><div class="ov-title" id="ovTitle"></div><div class="ov-sub" id="ovSub"></div></div></div>
+      <div class="vp-err" id="vpErr" hidden></div>
+    </section>
+
+    <aside class="side">
+      <!-- 3) คำอธิบายสี -->
+      <section class="panel">
+        <h2>สีความแน่นของโกดัง</h2>
+        <div class="sub">ความแน่น = รถกำลังขึ้นสินค้า ÷ ความจุสูงสุดของโกดัง (ไม่นับรถ Plan)</div>
+        <div class="lv">
+          <span class="dot dot-none"></span><span><b>ยังไม่ได้ตั้งเกณฑ์ / ความจุ</b> — สีเทา</span>
+          <span class="dot dot-good">✓</span><span id="lvGood"></span>
+          <span class="dot dot-warn">!</span><span id="lvWarn"></span>
+          <span class="dot dot-crit">!!</span><span id="lvCrit"></span>
+        </div>
+        <div class="th-box" id="thBox"></div>
+      </section>
+
+      <!-- 4) หน้าตาป้ายโกดัง -->
+      <section class="panel">
+        <h2>หน้าตาป้ายโกดัง</h2>
+        <div class="sub">รวมทุกจุดขึ้นสินค้าในโกดังเป็นยอดเดียว</div>
+        <div class="anat">
+          <div class="wc" aria-hidden="true">
+            <span class="wc-b">X</span>
+            <span class="wc-t"><b>8/10</b><small>Plan 7 · โหลด 8 (เมื่อซูมเข้า)</small></span>
+            <span class="wc-f">!</span>
+          </div>
+          <ul>
+            <li>ตัวเลข: รถกำลังขึ้นสินค้า / ความจุสูงสุด (คัน) — ไม่นับรถ Plan</li>
+            <li>บรรทัด Plan · โหลด (= กำลังขึ้น) แสดงเมื่อซูมเข้า หรือชี้/แตะป้าย · ดูรายการ Plan ได้โดยคลิกป้าย</li>
+            <li>วงส้มหัวป้าย = ชื่อโกดัง · ขอบ/พื้นป้าย = สีความแน่น · ยอด 0 ป้ายจาง</li>
+            <li>โกดังที่ไม่มีจุดใน WMS ไม่มีป้ายตัวเลข (ชี้เมาส์เพื่อดูความจุ)</li>
+            <li>อาคาร W: ป้าย "Weight Incoming" แสดงเฉพาะ Weight Final</li>
+          </ul>
+        </div>
+        <div class="hintline"><span class="hl-ar" aria-hidden="true">▸</span><span><b>คลิก/แตะป้ายโกดัง</b> เพื่อดูทะเบียนรถที่กำลังขึ้นและรถ Plan (ดึงจาก WMS ตอนคลิก)</span></div>
+      </section>
+    </aside>
+
+    <!-- 5) แผงรายการรถ (P2-D): เลื่อนมาทับแผงข้างขวา — ดึงจาก WMS เฉพาะตอนคลิก/กดรีเฟรช ไม่บันทึกลงเครื่อง -->
+    <aside class="pop" id="pop" role="dialog" aria-modal="false" aria-labelledby="popTitle" hidden>
+      <div class="grab" aria-hidden="true"></div>
+      <div class="pop-head">
+        <div class="pop-row1">
+          <span class="tag" id="popTag"></span>
+          <h2 class="pop-title" id="popTitle" tabindex="-1"></h2>
+          <button class="ibtn" id="refBtn" type="button" title="ดึงใหม่จาก WMS" aria-label="ดึงใหม่จาก WMS">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4.5h-4.5"/></svg>
+          </button>
+          <button class="ibtn" id="closeBtn" type="button" title="ปิด (Esc)" aria-label="ปิด">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+        <div class="pop-sub" id="popSub"></div>
+        <div class="pop-time" id="popTime" aria-live="polite"></div>
+        <div id="popBars"></div>
+        <div class="pop-sum" id="popSum"></div>
+      </div>
+      <div class="pop-body" id="popBody"></div>
+      <div class="pop-foot">
+        <span>ดึงเฉพาะตอนคลิก/กดรีเฟรช · ไม่บันทึกลงเครื่อง</span>
+        <span><kbd>Esc</kbd> หรือคลิกที่ว่างบนโมเดลเพื่อปิด</span>
+      </div>
+    </aside>
+  </div>
+</div>
+<div class="tip" id="tip"></div>
+
+<script src="js/gate-calc.js"></script>
+<script src="js/page2.js"></script>
+</body>
+</html>

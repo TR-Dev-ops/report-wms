@@ -1,0 +1,185 @@
+{
+    "schemaVersion":  1,
+    "kind":  "tracking",
+    "source":  "sample",
+    "note":  "FICTIONAL sample data (parsed from tests/fixtures/tracking-sample.html) - not real company figures",
+    "status":  "ok",
+    "message":  "",
+    "lastAttemptAt":  "2026-10-30T16:55:00+07:00",
+    "lastSuccessAt":  "2026-10-30T16:55:00+07:00",
+    "consecutiveFailures":  0,
+    "points":  [
+                   {
+                       "name":  "01",
+                       "plan":  3,
+                       "loading":  1,
+                       "zone":  "01"
+                   },
+                   {
+                       "name":  "02",
+                       "plan":  4,
+                       "loading":  0,
+                       "zone":  "02"
+                   },
+                   {
+                       "name":  "03",
+                       "plan":  0,
+                       "loading":  2,
+                       "zone":  "03"
+                   },
+                   {
+                       "name":  "21",
+                       "plan":  1,
+                       "loading":  0,
+                       "zone":  "21"
+                   },
+                   {
+                       "name":  "A1",
+                       "plan":  2,
+                       "loading":  1,
+                       "zone":  "A"
+                   },
+                   {
+                       "name":  "A2",
+                       "plan":  0,
+                       "loading":  0,
+                       "zone":  "A"
+                   },
+                   {
+                       "name":  "A6",
+                       "plan":  1,
+                       "loading":  0,
+                       "zone":  "A"
+                   },
+                   {
+                       "name":  "B",
+                       "plan":  5,
+                       "loading":  2,
+                       "zone":  "B"
+                   },
+                   {
+                       "name":  "E",
+                       "plan":  0,
+                       "loading":  0,
+                       "zone":  "B"
+                   },
+                   {
+                       "name":  "D9",
+                       "plan":  0,
+                       "loading":  1,
+                       "zone":  "D"
+                   },
+                   {
+                       "name":  "D8",
+                       "plan":  2,
+                       "loading":  0,
+                       "zone":  "D"
+                   },
+                   {
+                       "name":  "D10",
+                       "plan":  0,
+                       "loading":  0,
+                       "zone":  "D"
+                   },
+                   {
+                       "name":  "D11",
+                       "plan":  1,
+                       "loading":  1,
+                       "zone":  "D"
+                   },
+                   {
+                       "name":  "F4",
+                       "plan":  0,
+                       "loading":  0,
+                       "zone":  "F"
+                   },
+                   {
+                       "name":  "H3",
+                       "plan":  1,
+                       "loading":  0,
+                       "zone":  "H"
+                   },
+                   {
+                       "name":  "H4",
+                       "plan":  0,
+                       "loading":  0,
+                       "zone":  "H"
+                   },
+                   {
+                       "name":  "H7",
+                       "plan":  3,
+                       "loading":  1,
+                       "zone":  "H"
+                   },
+                   {
+                       "name":  "H8",
+                       "plan":  0,
+                       "loading":  0,
+                       "zone":  "H"
+                   },
+                   {
+                       "name":  "I1",
+                       "plan":  0,
+                       "loading":  0,
+                       "zone":  "I1"
+                   },
+                   {
+                       "name":  "K2",
+                       "plan":  0,
+                       "loading":  0,
+                       "zone":  "K"
+                   },
+                   {
+                       "name":  "K4",
+                       "plan":  2,
+                       "loading":  1,
+                       "zone":  "K"
+                   },
+                   {
+                       "name":  "K6",
+                       "plan":  0,
+                       "loading":  0,
+                       "zone":  "K"
+                   },
+                   {
+                       "name":  "K8",
+                       "plan":  1,
+                       "loading":  0,
+                       "zone":  "K"
+                   },
+                   {
+                       "name":  "L4",
+                       "plan":  0,
+                       "loading":  1,
+                       "zone":  "L"
+                   },
+                   {
+                       "name":  "M8",
+                       "plan":  0,
+                       "loading":  0,
+                       "zone":  "M8"
+                   },
+                   {
+                       "name":  "M5",
+                       "plan":  1,
+                       "loading":  0,
+                       "zone":  "M8"
+                   },
+                   {
+                       "name":  "O",
+                       "plan":  4,
+                       "loading":  2,
+                       "zone":  "O"
+                   },
+                   {
+                       "name":  "Scrap",
+                       "plan":  0,
+                       "loading":  1,
+                       "zone":  "Scrap"
+                   }
+               ],
+    "weightIncoming":  {
+                           "final":  3,
+                           "header":  37
+                       }
+}

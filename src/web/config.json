@@ -3,7 +3,7 @@
   "dataFile": "data/sample.json",
   "refreshMinutes": 5,
   "staleGraceMinutes": 2,
-  "targetEndTime": "",
+  "targetEndTime": "20:30",
   "forecastYellowWithinMinutes": null,
   "remainingTonsYellow": null,
   "remainingTonsRed": null,

@@ -50,6 +50,27 @@ h1, h2 { margin: 0; font-weight: 700; }
 .tb-title { flex: 1 1 26rem; min-width: 0; }
 .tb-title h1 { font-size: 2.1rem; line-height: 1.15; }
 .tb-title .sub { font-size: 1.05rem; color: var(--ink-2); }
+/* เมนูสลับหน้า 1 / หน้า 2 (ใช้ร่วมทั้งสองหน้า) */
+.tabs { display: flex; gap: .3rem; padding: .3rem; background: var(--surface); border: 1px solid var(--line); border-radius: .6rem; }
+.tab { padding: .5rem 1rem; border-radius: .4rem; font-size: 1.05rem; font-weight: 700; color: var(--ink-2); text-decoration: none; white-space: nowrap; }
+.tab:hover { color: var(--ink); background: var(--surface-2); }
+.tab.on { background: var(--s-in); color: #fff; }
+.tab .pg { font-weight: 400; opacity: .85; margin-right: .3rem; }
+.tab .ts { display: none; }
+/* ทีวี/คอมจอกว้าง: แท็บย่อ + แถบบนอยู่แถวเดียว (ไม่ให้แถบบนสูงขึ้นจนตารางหน้า 1 เห็นแถวน้อยลง) */
+@media (min-width: 1600px) {
+  .topbar { gap: 1rem; flex-wrap: nowrap; }
+  .tb-title { flex: 1 1 auto; min-width: 0; }
+  .tb-title h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 1.8rem; }
+  .pill, .sample-badge, .sim-badge { font-size: 1rem; padding: .35rem .7rem; }
+  .tb-badges .btn { padding: .4rem .7rem; }
+  .tb-title .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tab { padding: .45rem .8rem; }
+  .tab .tl { display: none; }
+  .tab .ts { display: inline; }
+  .tb-block, .tabs { flex: none; }
+  .tb-badges { flex: none; flex-wrap: nowrap; gap: .6rem; }
+}
 .tb-block .lbl { font-size: .9rem; color: var(--ink-2); }
 .tb-block .v { font-size: 1.6rem; font-weight: 700; }
 .tb-block .small { font-size: .9rem; color: var(--ink-2); }
@@ -227,6 +248,8 @@ body[data-conn="parse"] .content-inner, body[data-conn="nofile"] .content-inner,
   .content-inner { gap: .75rem; }
   .topbar { gap: .6rem 1.2rem; }
   .tb-title { flex-basis: 100%; }
+  .tabs { flex-basis: 100%; }
+  .tab { flex: 1; text-align: center; font-size: .95rem; padding: .55rem .4rem; white-space: normal; }
   .tb-title h1 { font-size: 1.45rem; }
   .tb-title .sub { font-size: .9rem; }
   .tb-block .v { font-size: 1.2rem; }

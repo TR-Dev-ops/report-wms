@@ -267,10 +267,32 @@
         '<td class="sep">' + d(t1(r.weightKg)) + '</td><td>' + d(t1(r.completeKg)) + '</td><td class="em">' + d(t1(r.remainingKg)) + '</td><td>' + d(nf1.format(r.completePct)) + '</td>' +
         '<td class="sep">' + d(nf0.format(r.truckCheckIn)) + '</td><td>' + d(nf0.format(r.truckOutbound)) + '</td><td>' + d(nf0.format(r.truckComplete)) + '</td><td class="em">' + d(nf0.format(r.truckRemaining)) + '</td><td>' + d(nf1.format(r.truckCompletePct)) + '</td></tr>';
     }).join('');
+    requestAnimationFrame(function () { keepRowVisible(v); });
     var T = v.T;
     $('tfoot').innerHTML = '<tr><th scope="row">รวมทั้งวัน</th><td>100.0</td>' +
       '<td class="sep">' + t1(T.weightKg) + '</td><td>' + t1(T.completeKg) + '</td><td>' + t1(T.remainingKg) + '</td><td>' + nf1.format(T.completePct) + '</td>' +
       '<td class="sep">' + nf0.format(T.truckCheckIn) + '</td><td>' + nf0.format(T.truckOutbound) + '</td><td>' + nf0.format(T.truckComplete) + '</td><td>' + nf0.format(T.truckRemaining) + '</td><td>' + nf1.format(T.truckCompletePct) + '</td></tr>';
+  }
+
+  /* ===== ตาราง: ให้แถวชั่วโมงปัจจุบันอยู่ในกรอบเสมอ (ทีวีช่วงค่ำ) =====
+     ทำทุกครั้งที่ render / เปลี่ยนขนาดจอ — ยกเว้นผู้ใช้เพิ่งเลื่อนตารางเองภายใน 60 วินาที (ไม่กระตุกแย่งการเลื่อน) */
+  var tblWrap = document.querySelector('.tbl-wrap'), userScrollAt = 0, autoScrolling = false;
+  tblWrap.addEventListener('scroll', function () { if (autoScrolling) autoScrolling = false; else userScrollAt = Date.now(); }, { passive: true });
+  function keepRowVisible(v) {
+    if (!v || !v.usable || Date.now() - userScrollAt < 60000) return;
+    var idx = v.curIdx >= 0 ? v.curIdx : v.lastShown;
+    var row = $('tbody').rows[idx];
+    if (!row || tblWrap.scrollHeight <= tblWrap.clientHeight) return;
+    var w = tblWrap.getBoundingClientRect(), r = row.getBoundingClientRect();
+    var headH = tblWrap.querySelector('thead').getBoundingClientRect().height;
+    var footH = $('tfoot').getBoundingClientRect().height;
+    var top = r.top - w.top + tblWrap.scrollTop, h = r.height;
+    var viewTop = tblWrap.scrollTop + headH, viewBottom = tblWrap.scrollTop + tblWrap.clientHeight - footH;
+    var want = tblWrap.scrollTop;
+    if (top + h * 2 > viewBottom) want = top + h * 2 - (tblWrap.clientHeight - footH);   // ให้เห็นแถวถัดไปอีก 1 แถว
+    else if (top < viewTop) want = top - headH;
+    want = Math.max(0, Math.min(want, tblWrap.scrollHeight - tblWrap.clientHeight));
+    if (Math.abs(want - tblWrap.scrollTop) >= 1) { autoScrolling = true; tblWrap.scrollTop = want; }
   }
 
   /* ===== แถบบน + แถบ error + ทับหน้า ===== */
@@ -478,7 +500,7 @@
 
   /* ===== ปุ่ม / เหตุการณ์ ===== */
   var rt;
-  window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(drawCharts, 120); });
+  window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(function () { drawCharts(); keepRowVisible(state.view); }, 120); });
   window.addEventListener('hashchange', render);
   $('themeBtn').addEventListener('click', function () {
     setTheme(document.body.getAttribute('data-theme') === 'light' ? 'dark' : 'light', true);

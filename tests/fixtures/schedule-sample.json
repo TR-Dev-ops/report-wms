@@ -1,0 +1,7 @@
+[
+  { "CompanyName": "Sample Freight Co., Ltd.", "GateName": "X1", "ShipmentCode": "SHP-TEST-0001", "Plate": "70-0001", "TruckMember": "Demo Haulage", "Weight": 12500.5, "Tracking": "<span class=\"label\">X1</span>" },
+  { "CompanyName": "บริษัท ตัวอย่างขนส่ง จำกัด", "GateName": "X1", "ShipmentCode": "SHP-TEST-0002", "Plate": "ทด 1234", "TruckMember": "หจก. รถบรรทุกจำลอง", "Weight": 8000, "Tracking": "<span class=\"label\">X1</span>" },
+  { "CompanyName": "Demo <b>&</b> \"Quote\" Cargo Co., Ltd.", "GateName": "X2", "ShipmentCode": "SHP-TEST-0003", "Plate": "71-0003", "TruckMember": "Demo Haulage", "Weight": 0, "Tracking": "" },
+  { "CompanyName": null, "GateName": "X2", "ShipmentCode": "SHP-TEST-0004", "Plate": "72-0004", "TruckMember": "", "Weight": 15000.25, "Tracking": "<span class=\"label\">X2</span>" },
+  { "CompanyName": "บริษัท ตัวอย่างขนส่งสินค้าระหว่างประเทศและบริการคลังสินค้าครบวงจร จำกัด (ชื่อยาวสมมติ)", "GateName": "X3", "ShipmentCode": "SHP-TEST-0005", "Plate": "สม 5678", "TruckMember": "Demo Haulage", "Weight": 9100, "Tracking": "<span class=\"label\">X3</span>" }
+]

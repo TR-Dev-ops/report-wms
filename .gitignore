@@ -6,6 +6,9 @@
 # ---- ข้อมูลจริงของบริษัท / IP ภายใน ห้ามขึ้น repo ----
 # ไฟล์ที่ระยะ 2 ผลิตจาก WMS จริง (+ ไฟล์ชั่วคราวระหว่างเขียน)
 src/web/data/latest.json
+# page 2: Gate Tracking numbers from WMS + the real site layout (site.local.json is covered by *.local.json)
+src/web/data/tracking.json
+src/web/data/site.local.json
 src/web/data/*.local.json
 src/web/data/*.tmp
 src/web/data/archive/

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<!-- gate-calc-tests.html - tests for src/web/js/gate-calc.js (page 2 logic). Fictional data only.
+     Run by tests\run-tests.ps1 part C:  msedge --headless --dump-dom file:///.../gate-calc-tests.html
+     or open it in a browser and read the result. -->
+<html lang="th"><head><meta charset="utf-8"><title>gate-calc tests</title></head>
+<body><pre id="out">NOT RUN</pre>
+<script charset="utf-8" src="../src/web/js/gate-calc.js"></script>
+<script>
+(function () {
+  var G = window.GateCalc, pass = 0, fail = 0, lines = [];
+  function ok(name, cond) { if (cond) pass++; else { fail++; lines.push('FAIL ' + name); } }
+  function eq(name, a, b) { ok(name + ' (got ' + JSON.stringify(a) + ', want ' + JSON.stringify(b) + ')', JSON.stringify(a) === JSON.stringify(b)); }
+  try {
+    var site = {
+      boundary: [[0, 0], [100, 0], [100, 100]],
+      buildings: [{ id: 'X', x: 0, y: 0, w: 10, d: 10, h: 5 }, { id: 'Y', x: 20, y: 0, w: 10, d: 10, h: 5 }, { id: 'Z', x: 40, y: 0, w: 10, d: 10, h: 5 }],
+      pointMap: { 'P1': 'X', 'P2': 'X', 'P3': 'Y', 'P9': 'GONE' },
+      capacity: { X: 10, Y: 4, Z: 5 },
+      densityThresholds: { warnPct: 80, critPct: 100 }
+    };
+    var pts = [{ name: 'P1', plan: 3, loading: 2 }, { name: 'P2', plan: 1, loading: 0 }, { name: 'P3', plan: 0, loading: 0 },
+      { name: 'NEW', plan: 2, loading: 1 }, { name: 'P9', plan: 1, loading: 0 }];
+    var a = G.aggregate(pts, site);
+    eq('aggregate X plan', a.byBuilding.X.plan, 4);
+    eq('aggregate X loading', a.byBuilding.X.loading, 2);
+    eq('aggregate X total = loading only (owner 2026-11-02: Plan not counted)', a.byBuilding.X.total, 2);
+    eq('total of a point with plan only = 0', G.aggregate([{ name: 'P1', plan: 9, loading: 0 }], site).byBuilding.X.total, 0);
+    // card colour from loading vs capacity: X cap 10, loading 8 + plan 5 -> 80% yellow (plan would have made it red)
+    var ax = G.aggregate([{ name: 'P1', plan: 5, loading: 8 }], site).byBuilding.X;
+    eq('colour uses loading only: 8 loading + 5 plan / cap 10 -> warn', G.levelFor(ax.total, G.capacityOf(site, 'X'), site.densityThresholds), 'warn');
+    eq('pct uses loading only', G.pctOf(ax.total, G.capacityOf(site, 'X')), 80);
+    eq('aggregate X keeps its points', a.byBuilding.X.pts.map(function (p) { return p.name; }), ['P1', 'P2']);
+    eq('aggregate Y total 0 still listed', a.byBuilding.Y.total, 0);
+    ok('aggregate Z (no points) not listed', !a.byBuilding.Z);
+    eq('unmatched: point not in pointMap + point mapped to missing building', a.unmatched.map(function (p) { return p.name + ':' + p.reason; }), ['NEW:nomap', 'P9:nobuilding']);
+    ok('unmatched points are not added to any building', a.byBuilding.X.plan + a.byBuilding.Y.plan === 4 && a.byBuilding.X.loading + a.byBuilding.Y.loading === 2);
+    eq('aggregate with no points', G.aggregate([], site).byBuilding, {});
+
+    var th = { warnPct: 80, critPct: 100 };
+    eq('level 0/10 = 0% green', G.levelFor(0, 10, th), 'good');
+    eq('level 7/10 = 70% green', G.levelFor(7, 10, th), 'good');
+    eq('level 7.9/10 = 79% green', G.levelFor(7.9, 10, th), 'good');
+    eq('level 8/10 = 80% yellow (boundary)', G.levelFor(8, 10, th), 'warn');
+    eq('level 9/10 = 90% yellow', G.levelFor(9, 10, th), 'warn');
+    eq('level 10/10 = 100% red (boundary)', G.levelFor(10, 10, th), 'crit');
+    eq('level 10/5 = 200% red', G.levelFor(10, 5, th), 'crit');
+    eq('level 4/5 = 80% yellow', G.levelFor(4, 5, th), 'warn');
+    eq('no capacity -> gray', G.levelFor(5, null, th), 'none');
+    eq('thresholds empty -> gray (never guessed)', G.levelFor(9, 10, { warnPct: null, critPct: null }), 'none');
+    eq('only red set: 90% green', G.levelFor(9, 10, { warnPct: null, critPct: 100 }), 'good');
+    eq('only red set: 100% red', G.levelFor(10, 10, { warnPct: '', critPct: 100 }), 'crit');
+    eq('capacityOf X', G.capacityOf(site, 'X'), 10);
+    eq('capacityOf missing -> null', G.capacityOf(site, 'Q'), null);
+    eq('capacityOf 0 -> null (no divide by 0)', G.capacityOf({ capacity: { Q: 0 } }, 'Q'), null);
+    eq('pct 6/10', G.pctOf(6, 10), 60);
+    eq('weight level: thresholds empty -> gray', G.weightLevel(3, { warn: null, crit: null }), 'none');
+    eq('weight level: 5 >= crit 5 -> red', G.weightLevel(5, { warn: 2, crit: 5 }), 'crit');
+
+    var good = { schemaVersion: 1, status: 'ok', lastSuccessAt: '2026-10-30T16:55:00+07:00', consecutiveFailures: 0,
+      points: [{ name: 'P1', plan: 1, loading: 0 }], weightIncoming: { final: 1, header: 4 } };
+    ok('valid tracking passes', G.validateTracking(good).ok);
+    function bad(mut) { var d = JSON.parse(JSON.stringify(good)); mut(d); return !G.validateTracking(d).ok; }
+    ok('negative plan rejected', bad(function (d) { d.points[0].plan = -1; }));
+    ok('decimal loading rejected', bad(function (d) { d.points[0].loading = 1.5; }));
+    ok('text number rejected', bad(function (d) { d.points[0].plan = '3'; }));
+    ok('duplicate point rejected', bad(function (d) { d.points.push({ name: 'P1', plan: 0, loading: 0 }); }));
+    ok('empty points rejected', bad(function (d) { d.points = []; }));
+    ok('bad lastSuccessAt rejected', bad(function (d) { d.lastSuccessAt = 'x'; }));
+    ok('bad weight final rejected', bad(function (d) { d.weightIncoming.final = 'n'; }));
+    ok('parse_error needs no points', G.validateTracking({ schemaVersion: 1, status: 'parse_error' }).ok);
+
+    var cfg = { refreshMinutes: 5, staleGraceMinutes: 2 }, t0 = Date.parse(good.lastSuccessAt);
+    eq('conn ok', G.connState(good, t0 + 3 * 60000, cfg).state, 'ok');
+    eq('conn retry after I+g', G.connState(good, t0 + 8 * 60000, cfg).state, 'retry');
+    eq('conn stale after 2I+g', G.connState(good, t0 + 13 * 60000, cfg).state, 'stale');
+    eq('conn stale when 2 failures', G.connState(Object.assign({}, good, { status: 'fetch_error', consecutiveFailures: 2 }), t0, cfg).state, 'stale');
+    eq('conn login', G.connState(Object.assign({}, good, { status: 'login_failed' }), t0, cfg).state, 'login');
+    eq('conn parse', G.connState({ schemaVersion: 1, status: 'parse_error' }, t0, cfg).state, 'parse');
+    eq('conn nodata: first fetch failed, never had data', G.connState({ schemaVersion: 1, status: 'fetch_error', lastSuccessAt: null, consecutiveFailures: 1, points: [], weightIncoming: null }, t0, cfg).state, 'nodata');
+    eq('conn login: login failed before any data', G.connState({ schemaVersion: 1, status: 'login_failed', lastSuccessAt: null, points: [] }, t0, cfg).state, 'login');
+    eq('conn parse when file is malformed', G.connState(Object.assign({}, good, { points: 'x' }), t0, cfg).state, 'parse');
+
+    ok('site sample-like passes', G.validateSite(site).ok);
+    ok('site without buildings rejected', !G.validateSite({ boundary: site.boundary, buildings: [] }).ok);
+    ok('site building missing w rejected', !G.validateSite({ boundary: site.boundary, buildings: [{ id: 'A', x: 1, y: 1, d: 1, h: 1 }] }).ok);
+    ok('site with parts passes', G.validateSite({ boundary: site.boundary, buildings: [{ id: 'L', h: 3, parts: [[0, 0, 1, 1], [1, 1, 2, 2]] }] }).ok);
+
+    // P2-D truck list answers (fictional plates)
+    var tr = { schemaVersion: 1, mode: 'live', wh: 'X', status: 'ok', message: '', gates: ['P1', 'P2'], failedGates: [],
+      loading: [{ plate: 'TST-1', company: 'Fake Co' }], plan: [{ plate: 'TST-2', company: null }, { plate: 'TST-3', company: 'B' }, null] };
+    var tv = G.truckView(tr);
+    eq('truck ok -> data', tv.kind, 'data');
+    eq('truck loading kept in WMS order', tv.loading.map(function (x) { return x.plate; }), ['TST-1']);
+    eq('truck plan: null row dropped, null company -> empty text', tv.plan, [{ plate: 'TST-2', company: '' }, { plate: 'TST-3', company: 'B' }]);
+    eq('truck ok: not sample, no failed gates', [tv.sample, tv.failed.length], [false, 0]);
+    eq('truck empty (all gates ok, no trucks)', G.truckView(Object.assign({}, tr, { loading: [], plan: [] })).kind, 'empty');
+    var tp = G.truckView(Object.assign({}, tr, { status: 'partial', failedGates: ['P2'], loading: [], plan: [] }));
+    eq('truck partial with no rows -> data (groups + warning, never "no trucks")', [tp.kind, tp.failed], ['data', ['P2']]);
+    eq('truck sample flag', G.truckView(Object.assign({}, tr, { mode: 'sample' })).sample, true);
+    eq('truck session', G.truckView({ schemaVersion: 1, status: 'session' }).kind, 'session');
+    eq('truck login_failed', G.truckView({ schemaVersion: 1, status: 'login_failed', message: 'login_blocked' }).kind, 'login');
+    eq('truck unknown warehouse', G.truckView({ schemaVersion: 1, status: 'unknown_wh' }).kind, 'unknown');
+    eq('truck error keeps reason', G.truckView({ schemaVersion: 1, status: 'error', message: 'no_gate_ids' }), { kind: 'error', reason: 'no_gate_ids' });
+    eq('truck wrong schema -> error', G.truckView({ status: 'ok', loading: [], plan: [] }).kind, 'error');
+    eq('truck loading not an array -> error', G.truckView(Object.assign({}, tr, { loading: 'x' })).kind, 'error');
+    eq('truck null -> error', G.truckView(null).kind, 'error');
+  } catch (e) { fail++; lines.push('EXCEPTION ' + e.message); }
+  document.getElementById('out').textContent = 'GATECALC RESULT pass=' + pass + ' fail=' + fail + '\n' + lines.join('\n');
+})();
+</script>
+</body></html>

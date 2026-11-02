@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<!-- tracking-sample.html - FICTIONAL test page for the Gate Tracking parser (tests\run-tests.ps1).
+     Same markup structure as the real WMS page (checked 2026-10-30) but every number is made up,
+     and there is no company name, logo, address or user name. -->
+<html>
+<head><meta charset="utf-8"><title>Gate Tracking</title>
+<script src="/WMS/LegacyClient/js/angular/angular.js"></script>
+<style> .box { float: left; } </style>
+</head>
+<body>
+<div class="span12 bgHeadingText"><h2>Gate Tracking</h2></div>
+<div ng-app="trackingModule" ng-controller="trackingController">
+  <div class="leftblock">
+    <ul>
+      <li class="box box2" id="OutboundTruck">
+        <h3>Outbound  <span class="badge badge-warning">{{ getTotalOutbound() }}</span></h3>
+        <table>
+          <tr ng-repeat="item in model.TruckOutbound">
+            <td class="columnWheelTruck">{{item.WheelTruck}}</td><td class="columnWaitTruck">{{item.WaitTruck}}</td>
+            <td class="columnWaitShipment">{{item.WaitShipment}}</td><td class="columnLoading">{{item.Loading}}</td>
+            <td class="columnLoadingEnd">{{item.LoadingEnd}}</td><td class="columnTotal">{{item.Total}}</td>
+          </tr>
+        </table>
+      </li>
+      <li class="box box2" id="weight" style="background-color: #DF0101;">
+        <h3>Weight Incoming  <span class="badge badge-warning">37</span></h3>
+        <br />
+        <span style="color:white;font-size: 18px;">Weight Final</span>
+        <h2 ng-click="pageEvent.onClickScheduleList(0,'W','','',0)">3</h2>
+        <input type="hidden" value="W" />
+      </li>
+    </ul>
+  </div>
+  <div style="margin-left: 250px">
+    <ul>
+<li class="box" id="600">
+<h3>01 </h3>
+<input type="hidden" value="S" />
+<table style="width: 100%;">
+<tr><td>
+<table width="100%" class="tbBorder" id="101"><tr>
+<td align="center" width="50%" class="column1">01</td>
+<td align="center" class="column2">3</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+1
+</td>
+</tr></table>
+</td></tr>
+</table>
+</li>
+<li class="box" id="601">
+<h3>02 </h3>
+<input type="hidden" value="S" />
+<table style="width: 100%;">
+<tr><td>
+<table width="100%" class="tbBorder" id="102"><tr>
+<td align="center" width="50%" class="column1">02</td>
+<td align="center" class="column2">4</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+0
+</td>
+</tr></table>
+</td></tr>
+</table>
+</li>
+<li class="box" id="602">
+<h3>03 </h3>
+<input type="hidden" value="S" />
+<table style="width: 100%;">
+<tr><td>
+<table width="100%" class="tbBorder" id="103"><tr>
+<td align="center" width="50%" class="column1">03</td>
+<td align="center" class="column2">0</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+2
+</td>
+</tr></table>
+</td></tr>
+</table>
+</li>
+<li class="box" id="603">
+<h3>21 </h3>
+<input type="hidden" value="S" />
+<table style="width: 100%;">
+<tr><td>
+<table width="100%" class="tbBorder" id="104"><tr>
+<td align="center" width="50%" class="column1">21</td>
+<td align="center" class="column2">1</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+0
+</td>
+</tr></table>
+</td></tr>
+</table>
+</li>
+<li class="box" id="604">
+<h3>A </h3>
+<input type="hidden" value="S" />
+<table style="width: 100%;">
+<tr><td>
+<table width="100%" class="tbBorder" id="105"><tr>
+<td align="center" width="50%" class="column1">A1</td>
+<td align="center" class="column2">2</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+1
+</td>
+</tr></table>
+</td></tr>
+<tr><td>
+<table width="100%" class="tbBorder" id="106"><tr>
+<td align="center" width="50%" class="column1">A2</td>
+<td align="center" class="column2">0</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+0
+</td>
+</tr></table>
+</td></tr>
+<tr><td>
+<table width="100%" class="tbBorder" id="107"><tr>
+<td align="center" width="50%" class="column1">A6</td>
+<td align="center" class="column2">1</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+0
+</td>
+</tr></table>
+</td></tr>
+</table>
+</li>
+<li class="box" id="607">
+<h3>B </h3>
+<input type="hidden" value="S" />
+<table style="width: 100%;">
+<tr><td>
+<table width="100%" class="tbBorder" id="108"><tr>
+<td align="center" width="50%" class="column1">B</td>
+<td align="center" class="column2">5</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+2
+</td>
+</tr></table>
+</td></tr>
+<tr><td>
+<table width="100%" class="tbBorder" id="109"><tr>
+<td align="center" width="50%" class="column1">E</td>
+<td align="center" class="column2">0</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+0
+</td>
+</tr></table>
+</td></tr>
+</table>
+</li>
+<li class="box" id="609">
+<h3>D </h3>
+<input type="hidden" value="S" />
+<table style="width: 100%;">
+<tr>
+<td width="50%">
+<table width="100%" class="tbBorder" id="110"><tr>
+<td align="center" width="50%" class="column1">D9</td>
+<td align="center" class="column2">0</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+1
+</td>
+</tr></table>
+</td>
+<td width="50%">
+<table width="100%" class="tbBorder" id="111"><tr>
+<td align="center" width="50%" class="column1">D8</td>
+<td align="center" class="column2">2</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+0
+</td>
+</tr></table>
+</td>
+</tr>
+<tr>
+<td width="50%">
+<table width="100%" class="tbBorder" id="112"><tr>
+<td align="center" width="50%" class="column1">D10</td>
+<td align="center" class="column2">0</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+0
+</td>
+</tr></table>
+</td>
+<td width="50%">
+<table width="100%" class="tbBorder" id="113"><tr>
+<td align="center" width="50%" class="column1">D11</td>
+<td align="center" class="column2">1</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+1
+</td>
+</tr></table>
+</td>
+</tr>
+</table>
+</li>
+<li class="box" id="613">
+<h3>F </h3>
+<input type="hidden" value="S" />
+<table style="width: 100%;">
+<tr><td>
+<table width="100%" class="tbBorder" id="114"><tr>
+<td align="center" width="50%" class="column1">F4</td>
+<td align="center" class="column2">0</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+0
+</td>
+</tr></table>
+</td></tr>
+</table>
+</li>
+<li class="box" id="614">
+<h3>H </h3>
+<input type="hidden" value="S" />
+<table style="width: 100%;">
+<tr>
+<td width="50%">
+<table width="100%" class="tbBorder" id="115"><tr>
+<td align="center" width="50%" class="column1">H3</td>
+<td align="center" class="column2">1</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+0
+</td>
+</tr></table>
+</td>
+<td width="50%">
+<table width="100%" class="tbBorder" id="116"><tr>
+<td align="center" width="50%" class="column1">H4</td>
+<td align="center" class="column2">0</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+0
+</td>
+</tr></table>
+</td>
+</tr>
+<tr>
+<td width="50%">
+<table width="100%" class="tbBorder" id="117"><tr>
+<td align="center" width="50%" class="column1">H7</td>
+<td align="center" class="column2">3</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+1
+</td>
+</tr></table>
+</td>
+<td width="50%">
+<table width="100%" class="tbBorder" id="118"><tr>
+<td align="center" width="50%" class="column1">H8</td>
+<td align="center" class="column2">0</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+0
+</td>
+</tr></table>
+</td>
+</tr>
+</table>
+</li>
+<li class="box" id="618">
+<h3>I1 </h3>
+<input type="hidden" value="S" />
+<table style="width: 100%;">
+<tr><td>
+<table width="100%" class="tbBorder" id="119"><tr>
+<td align="center" width="50%" class="column1">I1</td>
+<td align="center" class="column2">0</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+0
+</td>
+</tr></table>
+</td></tr>
+</table>
+</li>
+<li class="box" id="619">
+<h3>K </h3>
+<input type="hidden" value="S" />
+<table style="width: 100%;">
+<tr>
+<td width="50%">
+<table width="100%" class="tbBorder" id="120"><tr>
+<td align="center" width="50%" class="column1">K2</td>
+<td align="center" class="column2">0</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+0
+</td>
+</tr></table>
+</td>
+<td width="50%">
+<table width="100%" class="tbBorder" id="121"><tr>
+<td align="center" width="50%" class="column1">K4</td>
+<td align="center" class="column2">2</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+1
+</td>
+</tr></table>
+</td>
+</tr>
+<tr>
+<td width="50%">
+<table width="100%" class="tbBorder" id="122"><tr>
+<td align="center" width="50%" class="column1">K6</td>
+<td align="center" class="column2">0</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+0
+</td>
+</tr></table>
+</td>
+<td width="50%">
+<table width="100%" class="tbBorder" id="123"><tr>
+<td align="center" width="50%" class="column1">K8</td>
+<td align="center" class="column2">1</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+0
+</td>
+</tr></table>
+</td>
+</tr>
+</table>
+</li>
+<li class="box" id="623">
+<h3>L </h3>
+<input type="hidden" value="S" />
+<table style="width: 100%;">
+<tr><td>
+<table width="100%" class="tbBorder" id="124"><tr>
+<td align="center" width="50%" class="column1">L4</td>
+<td align="center" class="column2">0</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+1
+</td>
+</tr></table>
+</td></tr>
+</table>
+</li>
+<li class="box" id="624">
+<h3>M8 </h3>
+<input type="hidden" value="S" />
+<table style="width: 100%;">
+<tr><td>
+<table width="100%" class="tbBorder" id="125"><tr>
+<td align="center" width="50%" class="column1">M8</td>
+<td align="center" class="column2">0</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+0
+</td>
+</tr></table>
+</td></tr>
+<tr><td>
+<table width="100%" class="tbBorder" id="126"><tr>
+<td align="center" width="50%" class="column1">M5</td>
+<td align="center" class="column2">1</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+0
+</td>
+</tr></table>
+</td></tr>
+</table>
+</li>
+<li class="box" id="626">
+<h3>O </h3>
+<input type="hidden" value="S" />
+<table style="width: 100%;">
+<tr><td>
+<table width="100%" class="tbBorder" id="127"><tr>
+<td align="center" width="50%" class="column1">O</td>
+<td align="center" class="column2">4</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+2
+</td>
+</tr></table>
+</td></tr>
+</table>
+</li>
+<li class="box" id="627">
+<h3>Scrap </h3>
+<input type="hidden" value="S" />
+<table style="width: 100%;">
+<tr><td>
+<table width="100%" class="tbBorder" id="128"><tr>
+<td align="center" width="50%" class="column1">Scrap</td>
+<td align="center" class="column2">0</td>
+<td align="center" class="column2"
+ style="background-color: #0FB800">
+1
+</td>
+</tr></table>
+</td></tr>
+</table>
+</li>
+    </ul>
+  </div>
+  <div style="clear: both"></div>
+  <div class="lastFooter"><hr>
+    <table cellpadding="4" cellspacing="0" width="100%"><tr>
+      <td width="10px" class="statusC1"></td><td width="18%">Shipment to be Loading</td>
+      <td width="10px" class="statusC2"></td><td width="18%">Available Truck</td>
+      <td width="10px" class="statusC3"></td><td width="18%">Loading</td>
+      <td width="10px" class="statusC4"></td><td width="18%">Loading Complete</td>
+      <td width="10px" class="statusC5"></td><td>Total</td>
+    </tr></table>
+  </div>
+</div>
+</body>
+</html>
