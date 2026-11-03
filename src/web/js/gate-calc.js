@@ -78,6 +78,36 @@
     return out;
   }
 
+  /*
+   * P2-E: การ์ด summary "รถในคลัง / Plan" (บรีฟ P2-E, ดีไซน์ข้อ 13) — คำนวณจาก tracking.json ที่มีอยู่แล้ว ไม่เรียก WMS เพิ่ม
+   *  - loading = ผลรวม points[].loading ทุกจุด · plan = ผลรวม points[].plan ทุกจุด (รวมจุดที่ยังไม่จับคู่โกดัง, นับตามจุดแบบหน้า WMS)
+   *  - weight = weightIncoming.final (W แยกบรรทัด ไม่บวกเข้ายอดรถ) · ไม่มีค่า = null (หน้าจอแสดง "–" ห้ามแปลงเป็น 0)
+   *  - unmatched = { count, loading, plan } ของจุดที่ไม่อยู่ในผัง (ใช้กติกาเดียวกับ aggregate) · ไม่ส่ง site มา = null (ไม่รู้)
+   *  - points ไม่ใช่ array หรือมีจุดที่ตัวเลขผิดรูปแบบ = loading/plan เป็น null (ไม่เดา)
+   */
+  function summary(points, weightIncoming, site) {
+    var out = { loading: null, plan: null, weight: null, unmatched: null };
+    var wf = weightIncoming && typeof weightIncoming === 'object' ? weightIncoming.final : null;
+    if (isCount(wf)) out.weight = wf;
+    if (!Array.isArray(points)) return out;
+    var ld = 0, pl = 0;
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      if (!p || !isCount(p.loading) || !isCount(p.plan)) return out;
+      ld += p.loading; pl += p.plan;
+    }
+    out.loading = ld; out.plan = pl;
+    if (site && typeof site === 'object') {
+      var u = aggregate(points, site).unmatched;
+      out.unmatched = {
+        count: u.length,
+        loading: u.reduce(function (s, q) { return s + q.loading; }, 0),
+        plan: u.reduce(function (s, q) { return s + q.plan; }, 0)
+      };
+    }
+    return out;
+  }
+
   function capacityOf(site, bid) {
     var c = optNum(((site && site.capacity) || {})[bid]);
     return c === null || c === 0 ? null : c;
@@ -165,6 +195,6 @@
   root.GateCalc = {
     optNum: optNum, parseTime: parseTime, validateTracking: validateTracking, validateSite: validateSite,
     aggregate: aggregate, capacityOf: capacityOf, pctOf: pctOf, levelFor: levelFor, weightLevel: weightLevel, connState: connState,
-    truckView: truckView, weightBoardLevel: weightBoardLevel
+    truckView: truckView, weightBoardLevel: weightBoardLevel, summary: summary
   };
 })(typeof window !== 'undefined' ? window : this);

@@ -120,6 +120,24 @@
     eq('truck wrong schema -> error', G.truckView({ status: 'ok', loading: [], plan: [] }).kind, 'error');
     eq('truck loading not an array -> error', G.truckView(Object.assign({}, tr, { loading: 'x' })).kind, 'error');
     eq('truck null -> error', G.truckView(null).kind, 'error');
+
+    // P2-E summary "รถในคลัง / Plan" (fictional numbers)
+    var sOk = G.summary([{ name: 'P1', plan: 3, loading: 2 }, { name: 'P2', plan: 1, loading: 0 }, { name: 'P3', plan: 5, loading: 4 }], { final: 2, header: 7 }, site);
+    eq('summary normal: loading = sum of all points, plan = sum of all points, W = final only (header ignored)', [sOk.loading, sOk.plan, sOk.weight], [6, 9, 2]);
+    eq('summary normal: no unmatched points', sOk.unmatched, { count: 0, loading: 0, plan: 0 });
+    var sUn = G.summary(pts, { final: 0 }, site);   // pts has NEW (nomap) + P9 (mapped to a missing building)
+    eq('summary with unmatched: totals include unmatched points (= sum of every point)', [sUn.loading, sUn.plan], [3, 7]);
+    eq('summary with unmatched: unmatched part split into loading / plan', sUn.unmatched, { count: 2, loading: 1, plan: 3 });
+    ok('summary = warehouse cards + unmatched', sUn.loading === a.byBuilding.X.loading + a.byBuilding.Y.loading + sUn.unmatched.loading &&
+      sUn.plan === a.byBuilding.X.plan + a.byBuilding.Y.plan + sUn.unmatched.plan);
+    eq('summary W final 0 stays 0 (not "no data")', sUn.weight, 0);
+    var sNoW = G.summary([{ name: 'P1', plan: 3, loading: 2 }], null, site);
+    eq('summary weightIncoming null: W = null (shown as "–"), loading/plan still normal', [sNoW.loading, sNoW.plan, sNoW.weight], [2, 3, null]);
+    eq('summary weightIncoming without a number final -> W null', G.summary([], { final: 'x' }, site).weight, null);
+    eq('summary no points array -> all null (never 0)', G.summary(undefined, undefined, site), { loading: null, plan: null, weight: null, unmatched: null });
+    eq('summary bad point number -> loading/plan null (never guessed)', [G.summary([{ name: 'P1', plan: -1, loading: 2 }], null, site).loading, G.summary([{ name: 'P1', plan: 1, loading: '2' }], null, site).plan], [null, null]);
+    eq('summary without site -> unmatched unknown (null), totals still computed', G.summary([{ name: 'P1', plan: 1, loading: 1 }], null, null), { loading: 1, plan: 1, weight: null, unmatched: null });
+    eq('summary empty points array -> 0 / 0', [G.summary([], null, site).loading, G.summary([], null, site).plan], [0, 0]);
   } catch (e) { fail++; lines.push('EXCEPTION ' + e.message); }
   document.getElementById('out').textContent = 'GATECALC RESULT pass=' + pass + ' fail=' + fail + '\n' + lines.join('\n');
 })();

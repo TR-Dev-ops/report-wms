@@ -5,6 +5,7 @@
     Part B: live flow against tests\mock-wms.ps1 on localhost (fake user testuser / test-pass)
     Part C: page 2 logic in Edge headless + files that must not reach the repo
     Part D: P2-D truck list - server.ps1 GET /api/trucks (sample mode + -Live against the mock WMS, random ports, never 8787)
+            + P2-E summary card on the page (S1-S4) ; C5 = summary() vs an independent sum
   Run:  powershell -ExecutionPolicy Bypass -File tests\run-tests.ps1
   Everything is written to a temp folder that is deleted at the end.
 #>
@@ -357,7 +358,36 @@ try {
     if ((Test-Path $localSite) -and (Test-Path (Join-Path $root 'samples\tracking.html'))) {
       Compare-Agg 'REAL site.local.json + samples\tracking.html (local only)' ([IO.File]::ReadAllText((Join-Path $tmp 'real-tracking.json'), $utf8)) ([IO.File]::ReadAllText($localSite, $utf8))
     } else { Write-Host '  SKIP  C2 real (no site.local.json or samples\tracking.html)' }
-  } else { Write-Host '  SKIP  C1/C2 (Microsoft Edge not found)' }
+
+    # P2-E summary: GateCalc.summary in the browser vs an independent PowerShell sum of every point (unmatched included) + weightIncoming.final
+    function Compare-Sum([string]$label, [string]$trackingJson, [string]$siteJson) {
+      $site = $siteJson | ConvertFrom-Json; $tr = $trackingJson | ConvertFrom-Json
+      $ids = @{}; foreach ($b in $site.buildings) { $ids[$b.id] = $true }
+      $ld = 0; $pl = 0; $uc = 0; $ul = 0; $up = 0
+      foreach ($p in $tr.points) {
+        $ld += $p.loading; $pl += $p.plan
+        $bid = $site.pointMap.($p.name)
+        if (-not $bid -or -not $ids[$bid]) { $uc++; $ul += $p.loading; $up += $p.plan }
+      }
+      $w = $(if ($tr.weightIncoming) { [string]$tr.weightIncoming.final } else { 'null' })
+      $expTxt = "$ld/$pl/$w/$uc/$ul/$up"
+      $html = "<html><head><meta charset=`"utf-8`"></head><body><pre id=`"o`">x</pre><script src=`"$calcUri`"></script><script>" +
+        "var t=$trackingJson; var s=$siteJson; var r=GateCalc.summary(t.points,t.weightIncoming,s);" +
+        "document.getElementById('o').textContent='SUM['+[r.loading,r.plan,r.weight,r.unmatched.count,r.unmatched.loading,r.unmatched.plan].map(String).join('/')+']SUM';</script></body></html>"
+      $f = Join-Path $tmp ('sum-' + [guid]::NewGuid().ToString('N').Substring(0, 6) + '.html'); [IO.File]::WriteAllText($f, $html, $utf8)
+      $got = [regex]::Match((Edge-Dump $f), 'SUM\[(.*?)\]SUM').Groups[1].Value
+      Check ("C5 $label : summary loading/plan/W/unmatched = independent sum of all points") ($got -eq $expTxt) "browser [$got] vs [$expTxt]"
+      Remove-Item $f -ErrorAction SilentlyContinue
+    }
+    Compare-Sum 'sample site + fixture' ([IO.File]::ReadAllText((Join-Path $root 'src\web\data\tracking.sample.json'), $utf8)) $sampleSite
+    # same fixture with one point renamed so it is unmatched, and weightIncoming = null
+    $trU = [IO.File]::ReadAllText((Join-Path $root 'src\web\data\tracking.sample.json'), $utf8) | ConvertFrom-Json
+    $trU.points[0].name = 'ZZ-NOT-IN-SITE'; $trU.weightIncoming = $null
+    Compare-Sum 'fixture with an unmatched point + weightIncoming null' ($trU | ConvertTo-Json -Depth 6 -Compress) $sampleSite
+    if ((Test-Path $localSite) -and (Test-Path (Join-Path $tmp 'real-tracking.json'))) {
+      Compare-Sum 'REAL site.local.json + samples\tracking.html (local only)' ([IO.File]::ReadAllText((Join-Path $tmp 'real-tracking.json'), $utf8)) ([IO.File]::ReadAllText($localSite, $utf8))
+    } else { Write-Host '  SKIP  C5 real (no site.local.json or samples\tracking.html)' }
+  } else { Write-Host '  SKIP  C1/C2/C5 (Microsoft Edge not found)' }
 
   # files with real company data must be ignored; sample / code files must not be
   Push-Location $root
@@ -607,6 +637,21 @@ try {
     Check 'W5 page: W board panel opens ("W · Weight", one group "Weight Final", no gate line), plates = API answer' ($pop3 -and $pop3 -notmatch '\bhidden\b' -and
       $dom3 -match 'id="popTitle"[^>]*>W · Weight<' -and $secs3.Count -eq 1 -and $dom3 -match 'class="sec-h">.*?Weight Final' -and $dom3 -match 'id="popSub"[^>]*hidden' -and
       ($plates3 -join ',') -eq ((@($wapi.J.weight) | ForEach-Object { $_.plate }) -join ',') -and $plates3.Count -ge 1) "plates $($plates3 -join ',')"
+
+    # P2-E summary card on the real page (sample mode, 1920x1080)
+    $sumLd = 0; $sumPl = 0; foreach ($q in $trS.points) { $sumLd += $q.loading; $sumPl += $q.plan }
+    $sumW = $trS.weightIncoming.final
+    function Sum-Num([string]$d, [string]$id) { $m = [regex]::Match($d, 'id="' + $id + '"[^>]*><b>(\d+)</b><span class="u">'); if ($m.Success) { [int]$m.Groups[1].Value } else { $null } }
+    $dS = Edge-Url "http://localhost:$($sP.Port)/page2.html" 8000
+    Check "S1 page summary (sample): กำลังขึ้น = sum of all loading ($sumLd), Plan = sum of all plan ($sumPl), W = weightIncoming.final ($sumW)" ((Sum-Num $dS 'sumLd') -eq $sumLd -and (Sum-Num $dS 'sumPl') -eq $sumPl -and (Sum-Num $dS 'sumW') -eq $sumW -and
+      $dS -match 'class="panel sum"' -and $dS -match 'id="sumStale"[^>]*hidden' -and $dS -match 'id="sumNa"[^>]*hidden') ("got " + (Sum-Num $dS 'sumLd') + '/' + (Sum-Num $dS 'sumPl') + '/' + (Sum-Num $dS 'sumW'))
+    Check 'S2 summary sits above the side cards, truck panel is inside .rbody (cannot cover the summary)' ($dS -match '(?s)<div class="rcol">\s*<!--[^>]*-->\s*<section class="panel sum".*?<div class="rbody">\s*<aside class="side">.*?<aside class="pop"')
+    $dSt = Edge-Url "http://localhost:$($sP.Port)/page2.html#preview=stale" 8000
+    $hm = ([DateTimeOffset]::Parse($trS.lastSuccessAt)).ToLocalTime().ToString('HH:mm')
+    Check "S3 stale: numbers kept but dimmed + 'ข้อมูลเก่า ณ $hm น.'" ($dSt -match 'class="panel sum dim"' -and $dSt -match ('id="sumStale"[^>]*>ข้อมูลเก่า ณ ' + $hm + ' น\.<') -and (Sum-Num $dSt 'sumLd') -eq $sumLd)
+    $dPa = Edge-Url "http://localhost:$($sP.Port)/page2.html#preview=parse" 8000
+    $dash = @([regex]::Matches($dPa, '<b class="na" aria-label="ไม่มีข้อมูล">–</b>')).Count
+    Check 'S4 no usable data (parse): "–" for all 3 numbers (never 0), note "ยังไม่มีข้อมูลที่ใช้ได้" shown' ($dash -eq 3 -and $dPa -notmatch 'id="sumNa"[^>]*hidden' -and $null -eq (Sum-Num $dPa 'sumLd') -and $dPa -match 'id="sumUnm"[^>]*hidden') "dashes $dash"
   } else { Write-Host '  SKIP  D15/D16 (Microsoft Edge not found)' }
 
   foreach ($s in $script:servers) { try { Stop-Process -Id $s.P.Id -Force } catch { } }

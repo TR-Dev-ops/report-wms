@@ -71,6 +71,21 @@
       <div class="vp-err" id="vpErr" hidden></div>
     </section>
 
+    <!-- คอลัมน์ขวา (P2-E ดีไซน์ข้อ 13.4): summary อยู่กับที่ + .rbody = กรอบของแผงข้างเดิมและแผงรายการรถ (แผงจึงไม่บัง summary) -->
+    <div class="rcol">
+    <!-- 2.5) P2-E summary รถในคลัง / Plan: ยอดรวมจาก tracking.json ทุกจุด (ไม่เรียก WMS เพิ่ม) -->
+    <section class="panel sum" id="sum" aria-label="สรุปรถในคลังและรถ Plan">
+      <div class="sum-head"><h2>รถในคลัง / Plan</h2><span class="sum-scope">รวมทุกจุดขึ้นสินค้า</span></div>
+      <div class="sum-note stale" id="sumStale" hidden></div>
+      <div class="sum-note na" id="sumNa" hidden>ยังไม่มีข้อมูลที่ใช้ได้</div>
+      <div class="sum-pair">
+        <div class="sum-m ld"><div class="sum-lbl">กำลังขึ้นสินค้า</div><div class="sum-v" id="sumLd"><b class="na" aria-label="ไม่มีข้อมูล">–</b></div></div>
+        <div class="sum-m pl"><div class="sum-lbl">Plan</div><div class="sum-v" id="sumPl"><b class="na" aria-label="ไม่มีข้อมูล">–</b></div></div>
+      </div>
+      <div class="sum-unm" id="sumUnm" hidden></div>
+      <div class="sum-w"><span class="wb" aria-hidden="true">W</span><span class="wl">Weight Final</span><span class="sum-wv" id="sumW"><b class="na" aria-label="ไม่มีข้อมูล">–</b></span></div>
+    </section>
+    <div class="rbody">
     <aside class="side">
       <!-- 3) คำอธิบายสี -->
       <section class="panel">
@@ -132,6 +147,8 @@
         <span><kbd>Esc</kbd> หรือคลิกที่ว่างบนโมเดลเพื่อปิด</span>
       </div>
     </aside>
+    </div><!-- /.rbody -->
+    </div><!-- /.rcol -->
   </div>
 </div>
 <div class="tip" id="tip"></div>

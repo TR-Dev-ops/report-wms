@@ -128,6 +128,7 @@
     renderStatus(v);
     renderSide();
     renderUnmatched(v);
+    renderSummary(v);
     $('vpErr').hidden = !state.siteError;
     $('vpErr').textContent = state.siteError ? state.siteError + ' — แก้ไฟล์ผังตาม README ข้อ 10 แล้วกด F5' : '';
     req();
@@ -229,6 +230,26 @@
       return p.name + ' (Plan ' + p.plan + ' · โหลด ' + p.loading + (p.reason === 'nobuilding' ? ' · ไม่มีอาคาร ' + p.building + ' ในผัง' : '') + ')';
     }).join(', ') + ' — เพิ่มใน pointMap ของไฟล์ผัง (README ข้อ 10)';
     u.classList.add('on');
+  }
+
+  /* P2-E summary รถในคลัง / Plan (ดีไซน์ข้อ 13): ใช้ state.view เดียวกับโมเดล ไม่มี timer แยก ไม่เรียก WMS
+     ok/retry = ปกติ · stale/login (v.dim) = จาง + "ข้อมูลเก่า ณ hh:mm น." · ใช้ไม่ได้ (!v.usable) = "–" ทั้ง 3 ตัว (ห้าม 0) */
+  function sumVal(n) {
+    return n === null || n === undefined ? '<b class="na" aria-label="ไม่มีข้อมูล">–</b>' : '<b>' + n + '</b><span class="u">คัน</span>';
+  }
+  function renderSummary(v) {
+    var d = v.data, s = v.usable && d ? G.summary(d.points, d.weightIncoming, state.site) : { loading: null, plan: null, weight: null, unmatched: null };
+    var dataMs = d ? G.parseTime(d.lastSuccessAt) : null, dim = !!(v.usable && v.dim);
+    $('sum').classList.toggle('dim', dim);
+    $('sumStale').hidden = !dim;
+    $('sumStale').textContent = dim ? 'ข้อมูลเก่า ณ ' + (dataMs !== null ? hmMs(dataMs) : '—') + ' น.' : '';
+    $('sumNa').hidden = !!v.usable;
+    $('sumLd').innerHTML = sumVal(s.loading);
+    $('sumPl').innerHTML = sumVal(s.plan);
+    $('sumW').innerHTML = sumVal(s.weight);
+    var u = s.unmatched, showU = !!(u && u.count && s.loading !== null);
+    $('sumUnm').hidden = !showU;
+    $('sumUnm').innerHTML = showU ? '<span class="mk" aria-hidden="true"></span>รวมจุดที่ยังไม่จับคู่โกดัง: กำลังขึ้น ' + u.loading + ' · Plan ' + u.plan + ' คัน' : '';
   }
 
   /* =====================================================================
