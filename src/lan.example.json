@@ -1,0 +1,6 @@
+{
+  "_help": "LAN view (start-live-lan.cmd). Copy this file to lan.local.json (same folder, not committed) and put the real range of the team computers there - ask IT. allow = IPv4 ranges (CIDR, /8 to /32) that may open the pages; this computer itself is always allowed. No file or an empty list = the 3 private ranges + a warning. A broken file = the server does not start. perIpPerMinute = truck list clicks per computer per minute; wmsPerMinute = WMS requests per minute from all computers together. The values below are fictional (RFC 5737 documentation ranges).",
+  "allow": ["192.0.2.0/24", "198.51.100.0/24"],
+  "perIpPerMinute": 6,
+  "wmsPerMinute": 30
+}

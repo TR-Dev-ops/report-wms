@@ -276,7 +276,7 @@
   var cv = $('cv'), ctx = cv.getContext('2d'), vp = $('vp');
   var W = 0, H = 0, DPR = 1, REM = 16, C = PAL.dark, CAM = null, hits = [], gHits = [], DETAIL = false, hoverId = null, hoverCard = null;
   /* P2-D แผงรายการรถ: wh = id โกดังที่เปิดอยู่ (null = ปิด) */
-  var TP = { wh: null, seq: 0, ctrl: null, view: null, fetchedAt: 0, loading: false, timers: [] };
+  var TP = { wh: null, seq: 0, ctrl: null, view: null, fetchedAt: 0, loading: false, timers: [], rateUntil: 0 };
   /* ค่า TP.wh ของป้าย W (Weight Final) — มี "?" จึงไม่มีทางชนกับ id โกดัง (id โกดังเป็น A–Z a–z 0–9 _ -) */
   var WKEY = '?weight';
   var L = null, B = [], BM = {};
@@ -705,7 +705,8 @@
   }
   function whName(bid) { var b = BM[bid]; return b ? (b.label || b.id) : bid; }
   function clearTimers() { TP.timers.forEach(clearTimeout); TP.timers = []; }
-  function setBusy(on) { TP.loading = on; $('refBtn').disabled = on; $('refBtn').classList.toggle('spin', on); }
+  function rateWait() { return Math.max(0, Math.ceil((TP.rateUntil - Date.now()) / 1000)); }   /* วินาทีที่ต้องรอหลัง "กดถี่เกินไป" */
+  function setBusy(on) { TP.loading = on; $('refBtn').disabled = on || rateWait() > 0; $('refBtn').classList.toggle('spin', on); }
 
   function openPanel(bid) {
     tip.style.display = 'none';
@@ -741,6 +742,7 @@
   function loadTrucks(isRefresh) {
     if (!TP.wh || TP.loading) return;                                    /* กำลังดึงอยู่ -> ไม่ยิงซ้ำ */
     clearTimers();
+    if (rateWait() > 0) { TP.seq++; TP.view = { kind: 'rate' }; renderTruckError('rate', ''); return; }   /* ยังอยู่ในช่วงรอ "กดถี่เกินไป": ไม่ยิงซ้ำ */
     var my = ++TP.seq, wh = TP.wh, keep = isRefresh && TP.view && (TP.view.kind === 'data' || TP.view.kind === 'empty');
     setBusy(true);
     if (keep) { popBody.classList.add('dim'); $('popTime').textContent = 'กำลังดึงใหม่… (รายการด้านล่างคือชุดเดิม)'; $('popTime').className = 'pop-time'; }
@@ -759,6 +761,7 @@
         var v = r.json ? G.truckView(r.json) : { kind: 'error', reason: 'http' + r.status };
         if ((v.kind === 'data' || v.kind === 'empty') && v.weight !== (wh === WKEY)) v = { kind: 'error', reason: 'format' };   /* คำตอบไม่ตรงชนิดที่ขอ */
         TP.view = v;
+        if (v.kind === 'rate') { TP.rateUntil = Date.now() + v.retryAfterSec * 1000; setBusy(false); }
         if (v.kind === 'data' || v.kind === 'empty') { TP.fetchedAt = Date.now(); renderTrucks(v); }
         else renderTruckError(v.kind, v.reason);
       }, function () {
@@ -819,6 +822,22 @@
     var d = state.data, last = d ? G.parseTime(d.lastSuccessAt) : null;
     var round = last !== null ? '<br>' + (TP.wh === WKEY ? 'ตัวเลขบนป้าย W ' : 'ตัวเลขบนป้ายโกดัง') + 'ยังเป็นของรอบ ' + hmMs(last) + ' น.' : '';
     var big, m, retry = true;
+    if (kind === 'rate') {
+      /* ระยะ 3 โหมดแลน: เกินโควตา (ต่อเครื่อง หรือรวมทุกเครื่อง) — server ไม่ได้เรียก WMS · ปิดปุ่มรีเฟรช/ลองอีกครั้งจนครบเวลา */
+      popBody.innerHTML = '<div class="state err"><span class="ico">!</span><div class="big" id="rateBig"></div><div class="m">' +
+        'จำกัดการดึงรายการรถไม่ให้ WMS ถูกเรียกถี่เกินไป (โควตาใช้ร่วมกับทุกเครื่องที่เปิดดู)' + round + '</div>' +
+        '<button class="btn" id="retryBtn" type="button" style="margin-top:.4rem" disabled>ลองอีกครั้ง</button></div>';
+      var rateTick = function () {
+        var s = rateWait(), bg = $('rateBig'), rb = $('retryBtn');
+        if (!bg || !rb) return;
+        bg.textContent = s > 0 ? 'กดถี่เกินไป: ลองใหม่ใน ' + s + ' วินาที' : 'กดถี่เกินไป: ลองใหม่ได้แล้ว';
+        rb.disabled = s > 0; $('refBtn').disabled = TP.loading || s > 0;
+        if (s > 0) TP.timers.push(setTimeout(rateTick, 1000));
+      };
+      $('retryBtn').onclick = function () { loadTrucks(false); };
+      rateTick();
+      return;
+    }
     if (kind === 'session') {
       big = 'เซสชัน WMS หมดอายุ';
       m = 'ล็อกอิน WMS ใหม่แล้ว แต่ WMS ยังไม่ให้ดึงรายการ ลองอีกครั้งในอีกสักครู่<br>ถ้ายังไม่ได้ ให้แจ้งผู้ดูแลระบบ';
@@ -826,6 +845,9 @@
       big = 'ล็อกอิน WMS ไม่ผ่าน'; retry = false;
       m = reason === 'env_missing' ? 'ไม่พบไฟล์ .env หรือค่าใน .env ไม่ครบ — ผู้ดูแลต้องตั้งค่าบนเครื่องที่รันโปรแกรม'
         : 'โปรแกรมหยุดลองล็อกอินเองเพื่อไม่ให้บัญชีถูกล็อก<br>ผู้ดูแลต้องตรวจ user/รหัสผ่านใน .env แล้วเปิด start-live.cmd ใหม่';
+    } else if (kind === 'quota') {
+      big = TP.wh === WKEY ? 'ป้ายนี้ต้องใช้คำขอ WMS มากกว่าโควตา' : 'โกดังนี้มีประตูมากเกินโควตา'; retry = false;
+      m = 'แจ้งผู้ดูแลให้เพิ่ม wmsPerMinute ใน lan.local.json บนเครื่องที่รันโปรแกรม (README ข้อ 8.9.2) — กดซ้ำก็ไม่ช่วย';
     } else if (kind === 'unknown') {
       big = 'ไม่พบประตูของโกดังนี้'; retry = false;
       m = 'โกดังนี้ไม่มีจุดใน pointMap ของไฟล์ผัง (README ข้อ 10.2)';

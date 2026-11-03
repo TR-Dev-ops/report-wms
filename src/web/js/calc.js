@@ -6,6 +6,7 @@
  *  - ยอดค้าง ณ ตอนนี้ = Remaining ของแถวล่าสุดที่มีข้อมูล (ห้ามใช้แถว 0 ของชั่วโมงที่ยังไม่ถึง)
  *  - คาดการณ์ = ยอดค้าง ÷ อัตราเสร็จเฉลี่ย โดยอัตรานับจากต้นชั่วโมงแรกที่มีงานเสร็จ ถึงเวลาที่ดึงข้อมูล
  *  - เกณฑ์ที่ว่าง = ไม่ใส่สี
+ *  - การ์ด "ค้าง": เกณฑ์แบบ % ของงานรวมวันนี้เป็นหลัก ถ้า remainingPctGreenMax ว่างจึงใช้เกณฑ์ตัน/คันแบบเดิม
  */
 (function (root) {
   'use strict';
@@ -146,6 +147,26 @@
     return 'good';
   }
 
+  /*
+   * เกณฑ์สีแบบ % ของงานรวมวันนี้ (เจ้าของกำหนด 2026-11-03)
+   *   remainingPct(ค้าง, ฐาน) = ค้าง ÷ ฐาน × 100 ปัดทศนิยม 1 ตำแหน่ง (ตัดสินด้วยค่าที่เห็นบนจอ) ; ฐาน ≤ 0 / ไม่ใช่ตัวเลข = null (ไม่หารศูนย์)
+   *     น้ำหนัก: ฐาน = งานรวมวันนี้ ; รถ: ฐาน = รถ Outbound รวม (ฐานเดียวกับ "เสร็จแล้ว X% ของรถ Outbound")
+   *   levelByPct(pct, greenMax, yellowMax): pct ≤ greenMax = good ; pct ≤ yellowMax = warn ; มากกว่า = crit
+   *     greenMax ว่าง = ไม่ใช้แบบ % ; yellowMax ว่างหรือน้อยกว่า greenMax = ไม่มีขั้นเหลือง ; pct null (ฐาน 0) = 'none'
+   */
+  function remainingPct(remaining, base) {
+    if (!isNum(remaining) || !isNum(base) || !(base > 0)) return null;
+    return Math.round(remaining / base * 1000) / 10;
+  }
+  function pctThresholdsSet(greenMax) { return optNum(greenMax) !== null; }
+  function levelByPct(pct, greenMax, yellowMax) {
+    var g = optNum(greenMax), y = optNum(yellowMax);
+    if (g === null || !isNum(pct)) return 'none';
+    if (pct <= g) return 'good';
+    if (y !== null && y >= g && pct <= y) return 'warn';
+    return 'crit';
+  }
+
   /* สีของการ์ดคาดการณ์: เกินเป้า = crit ; เหลือเวลาก่อนเป้าน้อยกว่า X นาที = warn ; อื่น ๆ = good */
   function forecastLevel(etaMin, targetMin, warnWithinMin) {
     if (etaMin === null || etaMin === undefined || targetMin === null) return 'none';
@@ -184,7 +205,8 @@
     FIRST_HOUR: FIRST_HOUR, ROW_COUNT: ROW_COUNT,
     parseTime: parseTime, parseHHMM: parseHHMM, optNum: optNum, minutesOfDay: minutesOfDay,
     validateData: validateData, hasData: hasData, summarize: summarize, currentRowIndex: currentRowIndex,
-    forecast: forecast, levelByThreshold: levelByThreshold, forecastLevel: forecastLevel, connState: connState,
+    forecast: forecast, levelByThreshold: levelByThreshold,
+    remainingPct: remainingPct, pctThresholdsSet: pctThresholdsSet, levelByPct: levelByPct, forecastLevel: forecastLevel, connState: connState,
     pad: pad
   };
 })(typeof window !== 'undefined' ? window : this);

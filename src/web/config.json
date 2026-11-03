@@ -1,10 +1,12 @@
 {
-  "_help": "คำอธิบายทุกช่องอยู่ใน README.md หัวข้อ 'ค่าตั้งค่า' - ช่องเกณฑ์ที่เป็น null หรือ \"\" = ยังไม่ได้ตั้ง (ไม่ใส่สี) - แก้แล้วบันทึก หน้าจอจะอ่านค่าใหม่ในรอบถัดไป (หรือกด F5)",
+  "_help": "คำอธิบายทุกช่องอยู่ใน README.md หัวข้อ 'ค่าตั้งค่า' - การ์ด 'ค้าง' ใช้เกณฑ์ % (remainingPctGreenMax / remainingPctYellowMax) เป็นหลัก ถ้า remainingPctGreenMax เป็น null จึงใช้เกณฑ์ตัน/คัน - ช่องเกณฑ์ที่เป็น null หรือ \"\" = ยังไม่ได้ตั้ง (ไม่ใส่สี) - แก้แล้วบันทึก หน้าจอจะอ่านค่าใหม่ในรอบถัดไป (หรือกด F5)",
   "dataFile": "data/sample.json",
   "refreshMinutes": 5,
   "staleGraceMinutes": 2,
   "targetEndTime": "20:30",
   "forecastYellowWithinMinutes": null,
+  "remainingPctGreenMax": 25,
+  "remainingPctYellowMax": 50,
   "remainingTonsYellow": null,
   "remainingTonsRed": null,
   "remainingTrucksYellow": null,

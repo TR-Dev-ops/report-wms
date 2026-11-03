@@ -100,6 +100,11 @@
     eq('truck session', G.truckView({ schemaVersion: 1, status: 'session' }).kind, 'session');
     eq('truck login_failed', G.truckView({ schemaVersion: 1, status: 'login_failed', message: 'login_blocked' }).kind, 'login');
     eq('truck unknown warehouse', G.truckView({ schemaVersion: 1, status: 'unknown_wh' }).kind, 'unknown');
+    eq('truck quota_too_small (LAN) -> quota', G.truckView({ schemaVersion: 1, status: 'quota_too_small', needed: 34, wmsPerMinute: 30 }).kind, 'quota');
+    eq('truck rate_limited (LAN quota) -> rate', G.truckView({ schemaVersion: 1, status: 'rate_limited', retryAfterSec: 42 }).kind, 'rate');
+    eq('truck rate_limited keeps retryAfterSec', G.truckView({ schemaVersion: 1, status: 'rate_limited', retryAfterSec: 42 }).retryAfterSec, 42);
+    eq('truck rate_limited without retryAfterSec -> 60', G.truckView({ schemaVersion: 1, status: 'rate_limited' }).retryAfterSec, 60);
+    eq('truck rate_limited retryAfterSec clamped 1..120', G.truckView({ schemaVersion: 1, status: 'rate_limited', retryAfterSec: 9999 }).retryAfterSec, 120);
     // W board colour: capacity of building W = colour threshold, 80/100 like warehouses (W: 5 is a made-up value, same as site.sample.json)
     var sw = { capacity: { W: 5 }, densityThresholds: { warnPct: 80, critPct: 100 }, weightThresholds: { warn: null, crit: null } };
     eq('W 3/5 = 60% green', G.weightBoardLevel(3, sw, 'W'), 'good');

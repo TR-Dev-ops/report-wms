@@ -6,6 +6,8 @@
     Part C: page 2 logic in Edge headless + files that must not reach the repo
     Part D: P2-D truck list - server.ps1 GET /api/trucks (sample mode + -Live against the mock WMS, random ports, never 8787)
             + P2-E summary card on the page (S1-S4) ; C5 = summary() vs an independent sum
+    Part L: Phase 3 LAN view - IP / Host / file allowlists, click quotas, shared 10 s reuse across computers, start-up checks.
+            No admin rights, no URL registration, no firewall change: -LanTestLocalBind + this computer's own LAN IPv4.
   Run:  powershell -ExecutionPolicy Bypass -File tests\run-tests.ps1
   Everything is written to a temp folder that is deleted at the end.
 #>
@@ -17,6 +19,7 @@ $tmp     = Join-Path $env:TEMP ('wms-rt-tests-' + [guid]::NewGuid().ToString('N'
 New-Item -ItemType Directory -Path $tmp | Out-Null
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 $script:pass = 0; $script:fail = 0; $script:servers = @()
+$t0Run = [DateTime]::UtcNow
 
 function Check([string]$name, [bool]$cond, [string]$detail = '') {
   if ($cond) { $script:pass++; Write-Host "  PASS  $name" -ForegroundColor Green }
@@ -325,6 +328,12 @@ try {
     return [IO.File]::ReadAllText($so, $utf8)
   }
   if ($edge) {
+    $dom = Edge-Dump (Join-Path $PSScriptRoot 'calc-tests.html')
+    $m = [regex]::Match($dom, 'CALC RESULT pass=(\d+) fail=(\d+)([^<]*)')
+    Check ('C0 calc.js page 1 "remaining" colour by % (25%/50% boundaries, base 0, Outbound base): ' + $(if ($m.Success) { $m.Groups[1].Value + ' pass' } else { 'no result' })) ($m.Success -and [int]$m.Groups[2].Value -eq 0 -and [int]$m.Groups[1].Value -gt 40) $(if ($m.Success) { $m.Groups[3].Value } else { '' })
+    $appJs = [IO.File]::ReadAllText((Join-Path $root 'src\web\js\app.js'), $utf8)
+    Check 'C0 base 0 chip text is neutral: "คำนวณ % ไม่ได้" + reason "ฐานเป็น 0" in title' ($appJs.Contains("PCT_NONE_TEXT = 'คำนวณ % ไม่ได้'") -and $appJs.Contains('เพราะฐานเป็น 0') -and -not $appJs.Contains('ยังไม่มีงานวันนี้'))
+
     $dom = Edge-Dump (Join-Path $PSScriptRoot 'gate-calc-tests.html')
     $m = [regex]::Match($dom, 'GATECALC RESULT pass=(\d+) fail=(\d+)([^<]*)')
     Check ('C1 gate-calc.js tests (aggregate, colours 80/100 boundaries, validation, status): ' + $(if ($m.Success) { $m.Groups[1].Value + ' pass' } else { 'no result' })) ($m.Success -and [int]$m.Groups[2].Value -eq 0 -and [int]$m.Groups[1].Value -gt 30) $(if ($m.Success) { $m.Groups[3].Value } else { '' })
@@ -397,6 +406,10 @@ try {
       foreach ($p in 'src/web/data/site.local.json', 'src/web/data/tracking.json', 'src/web/data/tracking-parse-test.local.json', 'src/web/data/latest.json', 'samples/tracking.html', 'design/page2-site.js', 'brief.md') {
         & git check-ignore -q -- $p; Check "C3 ignored by git (never committed): $p" ($LASTEXITCODE -eq 0)
       }
+      & git check-ignore -q -- 'src/lan.local.json'; Check 'L0 ignored by git (never committed): src/lan.local.json (real LAN ranges)' ($LASTEXITCODE -eq 0)
+      foreach ($p in 'src/lan.example.json', 'src/lan-common.ps1', 'src/start-live-lan.cmd') {
+        & git check-ignore -q -- $p; Check "L0 committable (not ignored): $p" ($LASTEXITCODE -ne 0)
+      }
       foreach ($p in 'src/web/data/site.sample.json', 'src/web/data/tracking.sample.json', 'tests/fixtures/tracking-sample.html', 'src/web/page2.html', 'src/web/js/page2.js', 'src/web/js/gate-calc.js', 'src/web/css/page2.css', 'src/wms-common.ps1', 'src/server.ps1', 'tests/fixtures/schedule-sample.json') {
         & git check-ignore -q -- $p; Check "C3 committable (not ignored): $p" ($LASTEXITCODE -ne 0)
       }
@@ -430,6 +443,15 @@ try {
         if ($f -notmatch 'site\.sample\.json$' -and $txt -match '(boardAt|labelAt|labelOffset|cardAt|cardOffset)("\s*:\s*\[|`\s*\[|`?\s+x\s+)\s*-?\d') { $hits += "$f contains placement numbers ($($Matches[0]))" }        if ($txt -match '192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+') { $hits += "$f contains an IP address" }
         if ($txt -match ('T' + 'MT|ที' + 'เอ็มที')) { $hits += "$f contains the company name" }
       }
+      # Phase 3: no name / LAN IPv4 of this computer in anything committable (read from the machine now, never stored)
+      . (Join-Path $root 'src\lan-common.ps1')
+      $me = @(); if ([Environment]::MachineName.Length -ge 4) { $me += [Environment]::MachineName }; $me += @(Get-LanLocalIPv4)
+      $meHits = @()
+      foreach ($f in $files) {
+        $txt = [IO.File]::ReadAllText((Join-Path $root $f), $utf8)
+        foreach ($w in $me) { if ($txt.IndexOf($w, [StringComparison]::OrdinalIgnoreCase) -ge 0) { $meHits += $f } }
+      }
+      Check ("L0 committable files contain no name or LAN IP of this computer ($($me.Count) values checked, not shown)") ($meHits.Count -eq 0) (($meHits | Sort-Object -Unique) -join ', ')
       Check ("C4 committable files ($($files.Count)) contain no real building names ($($words.Count) checked), real coordinates ($($pairRes.Count) pairs + placement values), company name or internal IP") ($hits.Count -eq 0) ($hits -join '; ')
     } else { Write-Host '  SKIP  C3/C4 (git not found)' }
   } finally { Pop-Location }
@@ -665,6 +687,236 @@ try {
   $changed = @(Get-ChildItem $dataDir -File | Where-Object { $_.Name -notin @('latest.json', 'tracking.json') -and $_.Name -notlike '*.tmp' -and
     (-not $dataBefore.ContainsKey($_.Name) -or $dataBefore[$_.Name] -ne $_.LastWriteTimeUtc) })
   Check 'D18 nothing new or changed in src\web\data (truck lists are never cached on disk)' ($changed.Count -eq 0) (($changed | ForEach-Object { $_.Name }) -join ', ')
+
+  # ------------------------------------------------------------------ Part L
+  # Phase 3 LAN view. No admin rights, no URL registration, no firewall change: the -Lan checks run with
+  # -LanTestLocalBind (listens on http://localhost:<port>/). A "remote" computer = this computer connecting to its
+  # own LAN IPv4 (http.sys accepts it; the server then sees a non-loopback address). Only fictional plates.
+  Write-Host 'Part L - LAN view (allowlists, Host header, quotas, shared 10 s reuse, no admin)' -ForegroundColor Cyan
+  . (Join-Path $root 'src\lan-common.ps1')
+  $script:servers = @()
+  $lanIp = @(Get-LanLocalIPv4)[0]
+  function Ip([string]$s) { [System.Net.IPAddress]::Parse($s) }
+  function Throws([scriptblock]$b) { try { & $b | Out-Null; return $false } catch { return $true } }
+  function LanCfg([string]$name, [string]$json) { $f = Join-Path $tmp $name; [IO.File]::WriteAllText($f, $json, $utf8); return $f }
+
+  # ---- L1 IP allowlist (functions)
+  $al = @((ConvertTo-LanCidr '192.0.2.0/24'), (ConvertTo-LanCidr '198.51.100.7'))
+  Check 'L1 CIDR: inside 192.0.2.0/24 allowed, next range refused' ((Test-LanClient (Ip '192.0.2.200') $al).Allowed -and -not (Test-LanClient (Ip '192.0.3.1') $al).Allowed)
+  Check 'L1 CIDR: single address = /32 (198.51.100.7 yes, .8 no)' ((Test-LanClient (Ip '198.51.100.7') $al).Allowed -and -not (Test-LanClient (Ip '198.51.100.8') $al).Allowed)
+  Check 'L1 loopback 127.0.0.1 and ::1 always allowed (key "loopback")' ((Test-LanClient (Ip '127.0.0.1') $al).Key -eq 'loopback' -and (Test-LanClient (Ip '::1') $al).Key -eq 'loopback' -and (Test-LanClient (Ip '::1') @()).Allowed)
+  Check 'L1 IPv4-mapped IPv6 is checked as IPv4 (::ffff:192.0.2.9 allowed, ::ffff:203.0.113.9 refused)' ((Test-LanClient (Ip '::ffff:192.0.2.9') $al).Allowed -and (Test-LanClient (Ip '::ffff:192.0.2.9') $al).Text -eq '192.0.2.9' -and -not (Test-LanClient (Ip '::ffff:203.0.113.9') $al).Allowed)
+  Check 'L1 other IPv6 refused (2001:db8::1, fe80::1)' (-not (Test-LanClient (Ip '2001:db8::1') $al).Allowed -and -not (Test-LanClient (Ip 'fe80::1') $al).Allowed)
+  Check 'L1 no address -> refused' (-not (Test-LanClient $null $al).Allowed)
+  Check 'L1 bad CIDR text refused: /33, /7, 0.0.0.0/0, 256.1.1.1, "abc", "192.0.2.0/24 x", 1.2.3' ((Throws { ConvertTo-LanCidr '192.0.2.0/33' }) -and (Throws { ConvertTo-LanCidr '198.0.0.0/7' }) -and
+    (Throws { ConvertTo-LanCidr '0.0.0.0/0' }) -and (Throws { ConvertTo-LanCidr '256.1.1.1' }) -and (Throws { ConvertTo-LanCidr 'abc' }) -and (Throws { ConvertTo-LanCidr '192.0.2.0/24 x' }) -and (Throws { ConvertTo-LanCidr '1.2.3' }))
+  $c0 = Read-LanConfig (Join-Path $tmp 'no-such-lan.json')
+  Check 'L1 no lan.local.json -> the 3 private ranges (RFC 1918) + Defaulted (warning), quotas 6 / 30' ($c0.Defaulted -and @($c0.Allow).Count -eq 3 -and $c0.PerIpPerMinute -eq 6 -and $c0.WmsPerMinute -eq 30 -and
+    (Test-LanClient (Ip ((@(10, 1, 2, 3) -join '.'))) $c0.Allow).Allowed -and (Test-LanClient (Ip ((@(172, 31, 0, 1) -join '.'))) $c0.Allow).Allowed -and (Test-LanClient (Ip ((@(192, 168, 9, 9) -join '.'))) $c0.Allow).Allowed -and
+    -not (Test-LanClient (Ip ((@(172, 32, 0, 1) -join '.'))) $c0.Allow).Allowed -and -not (Test-LanClient (Ip '203.0.113.5') $c0.Allow).Allowed)
+  $c1 = Read-LanConfig (LanCfg 'l-empty.json' '{"allow": []}')
+  Check 'L1 empty "allow" list -> private ranges + Defaulted' ($c1.Defaulted -and @($c1.Allow).Count -eq 3)
+  $c2 = Read-LanConfig (LanCfg 'l-ok.json' ([char]0xFEFF + '{"_help":"x","allow": ["192.0.2.0/24"], "perIpPerMinute": 3, "wmsPerMinute": 12}'))
+  Check 'L1 valid file (with BOM): only that range, quotas read' (-not $c2.Defaulted -and @($c2.Allow).Count -eq 1 -and $c2.Allow[0].Text -eq '192.0.2.0/24' -and $c2.PerIpPerMinute -eq 3 -and $c2.WmsPerMinute -eq 12)
+  $badCfgs = @('{"allow": ["192.0.2.0/24",', '', '["192.0.2.0/24"]', '{"allow": "192.0.2.0/24"}', '{"allow": ["192.0.2.0/24", "nope"]}', '{"allow": ["0.0.0.0/0"]}', '{"allow": [24]}', '{"allow": ["192.0.2.0/24"], "perIpPerMinute": 0}', '{"allow": ["192.0.2.0/24"], "wmsPerMinute": "30"}')
+  $bi = 0; $allThrow = $true; foreach ($b in $badCfgs) { $bi++; $bf = LanCfg "l-bad$bi.json" $b; if (-not (Throws { Read-LanConfig $bf })) { $allThrow = $false; Write-Host "    did not stop on: $b" } }
+  Check "L1 broken lan.local.json ($($badCfgs.Count) kinds: bad JSON, empty, list, text, bad CIDR, 0.0.0.0/0, number, quota 0, quota as text) -> error (server stops)" $allThrow
+
+  # ---- L2 Host header (functions)
+  $names = Get-LanHostNames
+  $mn = [Environment]::MachineName
+  Check 'L2 Host: localhost / 127.0.0.1 / this computer name (any case) + the port -> ok' ((Test-LanHost 'localhost:41000' $names 41000) -and (Test-LanHost '127.0.0.1:41000' $names 41000) -and (Test-LanHost ($mn.ToUpper() + ':41000') $names 41000) -and (Test-LanHost ($mn.ToLower() + ':41000') $names 41000))
+  Check 'L2 Host: this computer LAN IPv4 + the port -> ok' ($(if ($lanIp) { Test-LanHost ($lanIp + ':41000') $names 41000 } else { $true }))
+  Check 'L2 Host: other names refused (DNS rebinding: evil.example, name.evil.example, wrong port, no port, empty, 0.0.0.0)' (-not (Test-LanHost 'evil.example:41000' $names 41000) -and -not (Test-LanHost ($mn + '.evil.example:41000') $names 41000) -and
+    -not (Test-LanHost 'localhost:41001' $names 41000) -and -not (Test-LanHost 'localhost' $names 41000) -and -not (Test-LanHost '' $names 41000) -and -not (Test-LanHost $null $names 41000) -and -not (Test-LanHost '0.0.0.0:41000' $names 41000))
+
+  # ---- L3 static file allowlist (function)
+  $okF = @('index.html', 'page2.html', 'css/style.css', 'css/page2.css', 'js/app.js', 'js/page2.js', 'js/gate-calc.js', 'js/calc.js', 'config.json', 'data/latest.json', 'data/tracking.json', 'data/site.local.json', 'data/site.sample.json', 'data/sample.json', 'data/tracking.sample.json', 'favicon.ico', 'DATA/Latest.JSON')
+  $noF = @('data/screenshot.local.json', 'data/parse-test.local.json', 'data/tracking-parse-test.local.json', 'data/latest.json.tmp', 'data/x.tmp', 'data/archive/latest.json', 'data/SCREEN~1.JSO',
+    'data/latest.json::$DATA', 'css/x.js', 'js/x.css', 'sub/index.html', 'js/sub/a.js', '.env', 'x.local.json', 'data/', '')
+  Check "L3 file allowlist: the $($okF.Count) files the pages use -> allowed" (@($okF | Where-Object { -not (Test-StaticAllowed $_) }).Count -eq 0) (($okF | Where-Object { -not (Test-StaticAllowed $_) }) -join ', ')
+  Check "L3 file allowlist: $($noF.Count) others (screenshot.local.json, parse-test, *.tmp, archive, 8.3 name, ADS ...) -> refused" (@($noF | Where-Object { Test-StaticAllowed $_ }).Count -eq 0) (($noF | Where-Object { Test-StaticAllowed $_ }) -join ', ')
+
+  # ---- L4 quotas (functions, simulated clock)
+  $t0 = [DateTime]::new(2026, 1, 5, 9, 0, 0)
+  $lim = New-LanLimiter 6 30
+  $r6 = @(1..6 | ForEach-Object { Test-LanPerIp $lim '192.0.2.1' $t0.AddSeconds($_) })
+  $w7 = Test-LanPerIp $lim '192.0.2.1' $t0.AddSeconds(10)
+  Check 'L4 per computer: 6 clicks in a minute ok, the 7th -> wait 51 s (until the oldest is 60 s old)' ((@($r6 | Where-Object { $_ -ne 0 }).Count -eq 0) -and $w7 -eq 51) "7th wait $w7"
+  Check 'L4 per computer: another computer is not affected; same computer ok again after 60 s' ((Test-LanPerIp $lim '192.0.2.2' $t0.AddSeconds(10)) -eq 0 -and (Test-LanPerIp $lim '192.0.2.1' $t0.AddSeconds(61)) -eq 0)
+  $lim2 = New-LanLimiter 6 30
+  foreach ($i in 1..20) { Add-LanWmsCall $lim2 $t0 }
+  Check 'L4 total WMS: 20 used + 10 = 30 fits; + 11 does not (checked before starting)' ((Test-LanWmsBudget $lim2 10 $t0.AddSeconds(5)) -eq 0 -and (Test-LanWmsBudget $lim2 11 $t0.AddSeconds(5)) -eq 55)
+  Check 'L4 total WMS: a click larger than the whole quota -> 60; old calls expire after 60 s' ((Test-LanWmsBudget $lim2 31 $t0.AddSeconds(5)) -eq 60 -and (Test-LanWmsBudget $lim2 30 $t0.AddSeconds(60)) -eq 0 -and $lim2.Wms.Count -eq 0)
+
+  # ---- L5 default mode unchanged (start.cmd / start-live.cmd: no -Lan)
+  $sD = Start-Srv @('-SiteFile', "`"$siteS`"", '-EnvFile', "`"$envGood`"")
+  function HttpAt([string]$ip, [int]$p, [string]$path, [hashtable]$hdr = @{}, [string]$hostHdr = '') {
+    try {
+      $rq = [System.Net.HttpWebRequest]::Create("http://$($ip):$p$path"); $rq.Proxy = $null; $rq.Timeout = 60000; $rq.ReadWriteTimeout = 60000
+      $rq.Host = $(if ($hostHdr) { $hostHdr } else { "localhost:$p" })
+      foreach ($k in $hdr.Keys) { $rq.Headers[$k] = $hdr[$k] }
+      try { $rs = $rq.GetResponse() } catch { if ($_.Exception.InnerException -and $_.Exception.InnerException.Response) { $rs = $_.Exception.InnerException.Response } else { return @{ Code = 0 } } }
+      $sr = New-Object IO.StreamReader($rs.GetResponseStream(), $utf8); $txt = $sr.ReadToEnd(); $sr.Close(); $code = [int]$rs.StatusCode; $ra = [string]$rs.Headers['Retry-After']; $rs.Close()
+      $jj = $null; try { $jj = $txt | ConvertFrom-Json } catch { }
+      return @{ Code = $code; J = $jj; Text = $txt; RetryAfter = $ra }
+    } catch { return @{ Code = 0 } }
+  }
+  $localOnly = @(Get-ChildItem $dataDir -File -Filter '*.local.json' | Where-Object { $_.Name -ne 'site.local.json' } | Select-Object -First 1)
+  $r = Http "http://localhost:$($sD.Port)/index.html"; Check 'L5 default mode: this computer still gets the page (200)' ($r.Code -eq 200)
+  if ($lanIp) {
+    $r = HttpAt $lanIp $sD.Port '/index.html'; Check 'L5 default mode: a non-loopback address -> 403 (same as before)' ($r.Code -eq 403)
+    $r = HttpAt $lanIp $sD.Port '/index.html' @{ 'X-Forwarded-For' = '127.0.0.1' }; Check 'L5 default mode: X-Forwarded-For: 127.0.0.1 does not help -> 403' ($r.Code -eq 403)
+  } else { Write-Host '  SKIP  L5 remote (this computer has no LAN IPv4 now)' }
+  if ($localOnly.Count) {
+    $r = Http "http://localhost:$($sD.Port)/data/$($localOnly[0].Name)"; Check "L5 default mode: data/$($localOnly[0].Name) is no longer served (404, file allowlist)" ($r.Code -eq 404)
+  } else { Write-Host '  SKIP  L5 local-only file (no other *.local.json in src\web\data)' }
+  $r = Http "http://localhost:$($sD.Port)/data/sample.json"; $r2 = Http "http://localhost:$($sD.Port)/data/site.sample.json"; $r3 = Http "http://localhost:$($sD.Port)/js/page2.js"
+  Check 'L5 default mode: files the pages use still served (sample.json, site.sample.json, js)' ($r.Code -eq 200 -and $r2.Code -eq 200 -and $r3.Code -eq 200)
+  $r = Http "http://localhost:$($sD.Port)/data/"; Check 'L5 default mode: folder / unknown path -> 404' ($r.Code -eq 404)
+  $c1 = (Http "http://localhost:$($sD.Port)/data/latest.json::`$DATA").Code; $c2 = (Http "http://localhost:$($sD.Port)/C:/Windows/win.ini").Code; $c3 = (Http "http://localhost:$($sD.Port)/x:y").Code
+  $c4 = (Http "http://localhost:$($sD.Port)/data%2Flatest.json%3A%3A%24DATA").Code
+  Check 'L5 path with ":" (::$DATA, drive letter, x:y, encoded) -> 404, not 500' ($c1 -eq 404 -and $c2 -eq 404 -and $c3 -eq 404 -and $c4 -eq 404) "$c1 $c2 $c3 $c4"
+  $q = 0; foreach ($i in 1..8) { if ((Api $sD 'N3').Code -eq 200) { $q++ } }
+  Check 'L5 default mode: no click quota (8 clicks in a row all 200)' ($q -eq 8)
+
+  if ($lanIp) {
+    $cfgMe = LanCfg 'l-me.json' ('{"allow": ["' + $lanIp + '/32"]}')
+    $cfgOther = LanCfg 'l-other.json' '{"allow": ["192.0.2.0/24"]}'
+    # ---- L6 -Lan, sample mode, this computer's LAN address allowed
+    $sA = Start-Srv @('-LanTestLocalBind', '-LanConfig', "`"$cfgMe`"", '-SiteFile', "`"$siteS`"", '-EnvFile', "`"$envGood`"")
+    $r = HttpAt $lanIp $sA.Port '/page2.html'; Check 'L6 -Lan: allowed LAN computer gets page2.html (200)' ($r.Code -eq 200 -and $r.Text -match 'id="pop"')
+    $okAll = $true; foreach ($f in @('/index.html', '/config.json', '/js/page2.js', '/css/page2.css', '/data/sample.json', '/data/site.sample.json', '/data/tracking.sample.json')) { if ((HttpAt $lanIp $sA.Port $f).Code -ne 200) { $okAll = $false; Write-Host "    not 200: $f" } }
+    Check 'L6 -Lan: allowed LAN computer gets every file the pages use' $okAll
+    $noAll = $true; foreach ($f in @('/.env', '/../.env', '/data/archive/x.json', '/data/x.tmp') + $(if ($localOnly.Count) { @('/data/' + $localOnly[0].Name) } else { @() })) { $c = (HttpAt $lanIp $sA.Port $f).Code; if ($c -ne 404 -and $c -ne 400) { $noAll = $false; Write-Host "    got $c for $f" } }
+    Check 'L6 -Lan: other files -> 404 (*.local.json except the site layout, .env, archive, *.tmp)' $noAll
+    $r = HttpAt $lanIp $sA.Port '/api/trucks?wh=N3' $apiHdr; Check 'L6 -Lan: allowed LAN computer can click a warehouse (sample rows)' ($r.Code -eq 200 -and $r.J.status -eq 'ok' -and $r.J.mode -eq 'sample')
+    $r = HttpAt $lanIp $sA.Port '/api/trucks?wh=N3'; Check 'L6 -Lan: API still needs X-WMS-Report (403 without)' ($r.Code -eq 403)
+    $r = HttpAt $lanIp $sA.Port '/api/trucks?wh=N3' @{ 'X-WMS-Report' = '1'; 'Sec-Fetch-Site' = 'cross-site' }; Check 'L6 -Lan: API still refuses Sec-Fetch-Site cross-site (403)' ($r.Code -eq 403)
+    # ---- L7 -Lan with a range that does not contain this computer's LAN address
+    $sO = Start-Srv @('-LanTestLocalBind', '-LanConfig', "`"$cfgOther`"", '-SiteFile', "`"$siteS`"", '-EnvFile', "`"$envGood`"")
+    $r = HttpAt $lanIp $sO.Port '/index.html'; Check 'L7 -Lan: computer outside lan.local.json "allow" -> 403' ($r.Code -eq 403)
+    $r = HttpAt $lanIp $sO.Port '/index.html' @{ 'X-Forwarded-For' = '192.0.2.5' }; Check 'L7 -Lan: X-Forwarded-For with an allowed address is ignored -> 403' ($r.Code -eq 403)
+    foreach ($i in 1..5) { [void](HttpAt $lanIp $sO.Port '/index.html') }
+    $r = Http "http://localhost:$($sO.Port)/index.html"; Check 'L7 -Lan: this computer (loopback) is always allowed' ($r.Code -eq 200)
+    # ---- L8 per-computer quota (sample mode: no WMS at all)
+    $sQ = Start-Srv @('-LanTestLocalBind', '-LanConfig', "`"$cfgMe`"", '-SiteFile', "`"$siteS`"", '-EnvFile', "`"$envGood`"")
+    Set-Mode 'normal'
+    $codes = @(1..6 | ForEach-Object { (HttpAt $lanIp $sQ.Port '/api/trucks?wh=N3' $apiHdr).Code })
+    $r = HttpAt $lanIp $sQ.Port '/api/trucks?kind=weight' $apiHdr
+    Check 'L8 quota: 6 clicks from one computer ok, the 7th (W board) -> 429 rate_limited + retryAfterSec + Retry-After' ((($codes | Where-Object { $_ -ne 200 }).Count -eq 0) -and $r.Code -eq 429 -and $r.J.status -eq 'rate_limited' -and $r.J.retryAfterSec -ge 1 -and $r.J.retryAfterSec -le 60 -and $r.RetryAfter -eq [string]$r.J.retryAfterSec) ("codes $($codes -join ',') then $($r.Code)")
+    $r = Api $sQ 'N3'; Check 'L8 quota is per computer: this computer (loopback) still ok' ($r.Code -eq 200)
+    $r = HttpAt $lanIp $sQ.Port '/page2.html'; Check 'L8 quota only limits clicks: pages still load for that computer' ($r.Code -eq 200)
+    Check 'L8 sample mode never contacts WMS' ((Count-Req '') -eq 0)
+    # ---- L9 live: shared 10 s reuse across computers + total WMS quota (mock WMS)
+    $cfgLive = LanCfg 'l-live.json' ('{"allow": ["' + $lanIp + '/32"], "perIpPerMinute": 100, "wmsPerMinute": 15}')
+    $sV = Start-Srv ($live1 + @('-EnvFile', "`"$envGood`"", '-LanTestLocalBind', '-LanConfig', "`"$cfgLive`""))
+    Set-Mode 'normal'
+    $rA = HttpAt $lanIp $sV.Port '/api/trucks?wh=N3' $apiHdr
+    $sched1 = @(Sched-Lines).Count
+    $rB = Api $sV 'N3'
+    Check 'L9 two computers click the same warehouse within 10 s -> one set of WMS requests (10), same answer' ($rA.J.status -eq 'ok' -and $rB.J.fetchedAt -eq $rA.J.fetchedAt -and $sched1 -eq 10 -and @(Sched-Lines).Count -eq 10) "sched $sched1 / $(@(Sched-Lines).Count)"
+    Set-Mode 'normal'
+    $r = Api $sV 'S1'
+    Check 'L9 total quota (15): 2 login + 10 used, S1 needs 10 + 2 -> 429 rate_limited before any WMS request' ($r.Code -eq 429 -and $r.J.status -eq 'rate_limited' -and (Count-Req '') -eq 0)
+    $r = HttpAt $lanIp $sV.Port '/api/trucks?wh=N3' $apiHdr
+    Check 'L9 answers from the 10 s memory do not count in the total quota (N3 again -> 200, no WMS request)' ($r.Code -eq 200 -and (Count-Req '') -eq 0)
+    $r = HttpAt $lanIp $sV.Port '/api/trucks?kind=weight' $apiHdr
+    Check 'L9 W board needs 1 request + 2 kept for a login: 12 + 3 <= 15 -> ok, exactly 1 WMS request (session reused)' ($r.J.status -eq 'ok' -and @(Sched-Lines).Count -eq 1 -and (Count-Req '') -eq 1)
+    # login requests count in the total: with 14, N3 uses 2 (login) + 10 = 12, then W (1 + 2) does not fit -> 429
+    $sV3 = Start-Srv ($live1 + @('-EnvFile', "`"$envGood`"", '-LanTestLocalBind', '-LanConfig', "`"$(LanCfg 'l-live3.json' ('{"allow": ["' + $lanIp + '/32"], "perIpPerMinute": 100, "wmsPerMinute": 14}'))`""))
+    Set-Mode 'normal'
+    $rN = Api $sV3 'N3'; $nReq = Count-Req ''
+    Set-Mode 'normal'
+    $r = WApi $sV3
+    Check 'L9 login GET + POST count in the total quota (14: 2 login + 10 used, W needs 3 -> 429, no request)' ($rN.J.status -eq 'ok' -and $nReq -eq 12 -and $r.Code -eq 429 -and $r.J.status -eq 'rate_limited' -and (Count-Req '') -eq 0) "N3 requests $nReq, W $($r.Code)"
+    # a warehouse that alone needs more than the whole quota: own status, not "wait 60 s"
+    $sV4 = Start-Srv ($live1 + @('-EnvFile', "`"$envGood`"", '-LanTestLocalBind', '-LanConfig', "`"$(LanCfg 'l-live4.json' ('{"allow": ["' + $lanIp + '/32"], "perIpPerMinute": 100, "wmsPerMinute": 10}'))`""))
+    Set-Mode 'normal'
+    $r = Api $sV4 'N3'
+    Check 'L9 warehouse needing more than wmsPerMinute (5 gates = 12 > 10) -> status quota_too_small (200, not 429), no WMS request' ($r.Code -eq 200 -and $r.J.status -eq 'quota_too_small' -and $r.J.needed -eq 12 -and $r.J.wmsPerMinute -eq 10 -and (Count-Req '') -eq 0) $r.Text
+    $r = Api $sV4 'N3'
+    Check 'L9 quota_too_small again -> same answer (not a countdown), still no WMS request' ($r.J.status -eq 'quota_too_small' -and (Count-Req '') -eq 0)
+    $r = WApi $sV4
+    Check 'L9 same server: W board (3) still fits in 10 -> ok' ($r.J.status -eq 'ok' -and @(Sched-Lines).Count -eq 1)
+    $cfgLive2 = LanCfg 'l-live2.json' ('{"allow": ["' + $lanIp + '/32"], "perIpPerMinute": 2}')
+    $sV2 = Start-Srv ($live1 + @('-EnvFile', "`"$envGood`"", '-LanTestLocalBind', '-LanConfig', "`"$cfgLive2`""))
+    Set-Mode 'normal'
+    [void](HttpAt $lanIp $sV2.Port '/api/trucks?wh=N1' $apiHdr); [void](HttpAt $lanIp $sV2.Port '/api/trucks?wh=N1' $apiHdr)
+    Set-Mode 'normal'
+    $r = HttpAt $lanIp $sV2.Port '/api/trucks?wh=S2' $apiHdr
+    Check 'L9 live: per-computer 429 -> WMS not contacted at all' ($r.Code -eq 429 -and (Count-Req '') -eq 0)
+    # ---- L10 single-thread: while one click waits for a slow WMS gate, another computer's page request just waits (no error)
+    $sT = Start-Srv ($live1 + @('-EnvFile', "`"$envGood`"", '-LanTestLocalBind', '-LanConfig', "`"$cfgMe`""))
+    [IO.File]::WriteAllText((Join-Path $state 'failgate.txt'), [string]$gid['M8']); Set-Mode 'schedslow'
+    $slow = [System.Net.HttpWebRequest]::Create("http://$($lanIp):$($sT.Port)/api/trucks?wh=S3"); $slow.Proxy = $null; $slow.Host = "localhost:$($sT.Port)"; $slow.Headers['X-WMS-Report'] = '1'; $slow.Timeout = 60000
+    $ar = $slow.BeginGetResponse($null, $null)
+    Start-Sleep -Milliseconds 700
+    $tq = Get-Date
+    $r = Http "http://localhost:$($sT.Port)/data/tracking.sample.json"
+    $waited = ((Get-Date) - $tq).TotalSeconds
+    $sr0 = $slow.EndGetResponse($ar); $sr0.Close()
+    Remove-Item (Join-Path $state 'failgate.txt')
+    Check ('L10 page file requested during a slow click: waits (' + [Math]::Round($waited, 1) + ' s) then 200 - never an error; the pages use fetch() without a time limit for these files') ($r.Code -eq 200 -and $waited -lt 30)
+    # ---- L11 the page shows "กดถี่เกินไป" (Edge headless, sample mode, this computer = loopback has the same quota)
+    if ($edge) {
+      $sU = Start-Srv @('-LanTestLocalBind', '-LanConfig', "`"$cfgMe`"", '-EnvFile', "`"$envGood`"")
+      $whU = $null; foreach ($q in $trS.points) { $v = [string]$pm.($q.name); if ($v) { $whU = $v; break } }
+      foreach ($i in 1..6) { [void](Api $sU $whU) }
+      $domU = Edge-Url "http://localhost:$($sU.Port)/page2.html#open=$whU" 6000
+      Check 'L11 page: 7th click -> panel shows "กดถี่เกินไป: ลองใหม่ใน X วินาที", refresh + retry buttons disabled, no rows' ($domU -match 'id="rateBig"[^>]*>กดถี่เกินไป: ลองใหม่ใน \d+ วินาที<' -and
+        $domU -match '<button[^>]*id="refBtn"[^>]*disabled' -and $domU -match '<button[^>]*id="retryBtn"[^>]*disabled' -and $domU -notmatch '<span class="plate">') ([regex]::Match($domU, 'id="rateBig"[^<]*<').Value)
+    } else { Write-Host '  SKIP  L11 (Microsoft Edge not found)' }
+  } else { Write-Host '  SKIP  L6-L11 (this computer has no LAN IPv4 now; the function tests L1-L4 still ran)' }
+
+  # ---- L12 start-up checks: broken lan.local.json, no lan.local.json, -Lan without URL registration
+  function Run-Srv([string[]]$a, [int]$waitMs = 20000) {
+    $p0 = Get-Random -Minimum 40000 -Maximum 49000
+    $out = Join-Path $tmp ('srvx-' + $p0 + '.txt')
+    $sp = Start-Process powershell -PassThru -WindowStyle Hidden -RedirectStandardOutput $out -ArgumentList (@('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$server`"", '-Port', $p0, '-NoBrowser') + $a)
+    $null = $sp.Handle
+    $null = $sp.Handle                                   # keep the handle so ExitCode is available after exit
+    $done = $sp.WaitForExit($waitMs)
+    if (-not $done) { try { Stop-Process -Id $sp.Id -Force } catch { } }
+    $txt = $(if (Test-Path $out) { [IO.File]::ReadAllText($out, $utf8) } else { '' })
+    return @{ Exited = $done; Code = $(if ($done) { $sp.ExitCode } else { $null }); Out = $txt; Port = $p0 }
+  }
+  $bad = Run-Srv @('-LanTestLocalBind', '-LanConfig', "`"$(LanCfg 'l-broken.json' '{"allow": ["192.0.2.0/24", "0.0.0.0/0"]}')`"")
+  Check 'L12 broken lan.local.json (0.0.0.0/0) -> server stops with a message (exit 2), never opens wider' ($bad.Exited -and $bad.Code -eq 2 -and $bad.Out -match 'LAN mode NOT started: lan.local.json is broken') $bad.Out
+  $sN = Start-Srv @('-LanTestLocalBind', '-LanConfig', "`"$(Join-Path $tmp 'no-such-lan.json')`"", '-EnvFile', "`"$envGood`"")
+  $r = Http "http://localhost:$($sN.Port)/index.html"
+  Start-Sleep -Milliseconds 300
+  $fs = New-Object IO.FileStream($sN.Out, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+  $rd = New-Object IO.StreamReader($fs, $utf8); $nOut = $rd.ReadToEnd(); $rd.Close()
+  Check 'L12 no lan.local.json -> runs with the private ranges and shows the warning + LAN MODE ON + URL with the computer name' ($r.Code -eq 200 -and $nOut -match 'WARNING' -and $nOut -match 'LAN MODE ON' -and $nOut.Contains("http://$($mn):$($sN.Port)/"))
+  $ua = Run-Srv @('-Lan', '-LanConfig', "`"$cfgOther`"")
+  $after = Http "http://localhost:$($ua.Port)/index.html"
+  Check 'L12 -Lan without the URL registration -> clear message (README 8.9 step 1), exit 1, nothing listening (no silent localhost)' ($ua.Exited -and $ua.Code -eq 1 -and $ua.Out -match 'Access denied' -and $ua.Out -match '8\.9 step 1' -and $after.Code -eq 0) $ua.Out
+  $srcHits = @()
+  foreach ($f in @('src\server.ps1', 'src\lan-common.ps1', 'src\start-live-lan.cmd', 'src\start-live.cmd', 'src\start.cmd', 'src\fetch-wms.ps1', 'src\wms-common.ps1')) {
+    $n = 0; $inBlock = $false
+    foreach ($line in [IO.File]::ReadAllLines((Join-Path $root $f), $utf8)) {
+      $n++; $s = $line.Trim()
+      if ($s.StartsWith('<#')) { $inBlock = $true }
+      if ($inBlock) { if ($s.Contains('#>')) { $inBlock = $false }; continue }
+      if ($s -match '(?i)netsh|NetFirewall|Set-NetConnectionProfile|RunAs|-Verb\b|urlacl' -and $s -notmatch '^(#|rem\b|Write-Host\b)' -and $s -notmatch '^[^#]*#.*(?i)(netsh|firewall|admin)') { $srcHits += "${f}:$n" }
+    }
+  }
+  Check 'L12 no program file runs netsh / firewall / network profile commands or asks for admin (mentions only in comments and messages)' ($srcHits.Count -eq 0) ($srcHits -join ', ')
+
+  # ---- L13 console + files: visitor IP on the console only, never plates / passwords; nothing written to disk
+  foreach ($s in $script:servers) { try { Stop-Process -Id $s.P.Id -Force } catch { } }
+  Start-Sleep -Milliseconds 500
+  $lanText = ($script:servers | ForEach-Object { if (Test-Path $_.Out) { [IO.File]::ReadAllText($_.Out, $utf8) } }) -join "`n"
+  if ($lanIp) {
+    Check 'L13 console shows "new viewer <IP>", "trucks wh=... from <IP>", combined "refused 403 ip from <IP>" and "refused 429 ..."' ($lanText.Contains("new viewer $lanIp") -and $lanText -match ('trucks wh=N3 gates=5 ok n=\d+ from ' + [regex]::Escape($lanIp)) -and
+      @([regex]::Matches($lanText, 'refused 403 ip from ' + [regex]::Escape($lanIp))).Count -eq 1 -and $lanText -match 'refused 429 clicks from' -and $lanText -match 'refused 429 wms-quota from' -and $lanText -match 'trucks wh=N3 needs up to 12 WMS requests, more than wmsPerMinute=10')
+  }
+  Check 'L13 LAN console never shows plates, company names, password, user or the WMS address' ($lanText -notmatch 'TST-|Freight|Haulage|ตัวอย่างขนส่ง|test-pass|wrong-pass|testuser|/wms')
+  $leak = @(Get-ChildItem $tmp -Recurse -File | Where-Object { $_.FullName -notlike "$state*" -and $_.Name -notlike 'edge-*' -and $_.FullName -notlike '*edge-profile*' } | Where-Object { ([IO.File]::ReadAllText($_.FullName, $utf8)) -match 'TST-\d' })
+  $changed = @(Get-ChildItem $dataDir -File | Where-Object { $_.Name -notin @('latest.json', 'tracking.json') -and $_.Name -notlike '*.tmp' -and (-not $dataBefore.ContainsKey($_.Name) -or $dataBefore[$_.Name] -ne $_.LastWriteTimeUtc) })
+  $newSrc = @(Get-ChildItem (Join-Path $root 'src') -File | Where-Object { $_.LastWriteTimeUtc -gt $t0Run })
+  Check 'L13 LAN mode writes no plate and no visitor log to any file (src\web\data and src\ unchanged)' ($leak.Count -eq 0 -and $changed.Count -eq 0 -and $newSrc.Count -eq 0) ((@($leak) + @($changed) + @($newSrc) | ForEach-Object { $_.Name }) -join ', ')
 }
 finally {
   foreach ($s in @($script:servers)) { try { Stop-Process -Id $s.P.Id -Force -ErrorAction SilentlyContinue } catch { } }

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<!-- calc-tests.html - tests for src/web/js/calc.js (page 1 "ค้าง" card colour by % of today's work). Fictional numbers only.
+     Run by tests\run-tests.ps1 part C (C0):  msedge --headless --dump-dom file:///.../calc-tests.html
+     or open it in a browser and read the result. -->
+<html lang="th"><head><meta charset="utf-8"><title>calc tests</title></head>
+<body><pre id="out">NOT RUN</pre>
+<script charset="utf-8" src="../src/web/js/calc.js"></script>
+<script>
+(function () {
+  var C = window.WmsCalc, pass = 0, fail = 0, lines = [];
+  function ok(name, cond) { if (cond) pass++; else { fail++; lines.push('FAIL ' + name); } }
+  function eq(name, a, b) { ok(name + ' (got ' + JSON.stringify(a) + ', want ' + JSON.stringify(b) + ')', JSON.stringify(a) === JSON.stringify(b)); }
+  try {
+    /* remainingPct */
+    eq('pct 1300 / 2000 = 65 (fictional)', C.remainingPct(1300, 2000), 65);
+    eq('pct trucks 33 / 60 = 55 (fictional)', C.remainingPct(33, 60), 55);
+    eq('pct 2 / 3 rounds to 66.7', C.remainingPct(2, 3), 66.7);
+    eq('pct 25 / 100 = 25', C.remainingPct(25, 100), 25);
+    eq('pct 0 / 100 = 0', C.remainingPct(0, 100), 0);
+    eq('pct base 0 -> null (no divide by zero)', C.remainingPct(0, 0), null);
+    eq('pct base 0 with remaining > 0 -> null', C.remainingPct(5, 0), null);
+    eq('pct base negative -> null', C.remainingPct(5, -1), null);
+    eq('pct base not a number -> null', C.remainingPct(5, 'x'), null);
+    eq('pct remaining not a number -> null', C.remainingPct(null, 100), null);
+    eq('pct rounds to 1 decimal: 1 / 3 = 33.3', C.remainingPct(1, 3), 33.3);
+    eq('pct over 100 kept (more left than total)', C.remainingPct(150, 100), 150);
+
+    /* levelByPct with owner defaults 25 / 50 */
+    eq('0% -> green', C.levelByPct(0, 25, 50), 'good');
+    eq('24.9% -> green', C.levelByPct(24.9, 25, 50), 'good');
+    eq('25% boundary -> green', C.levelByPct(25, 25, 50), 'good');
+    eq('25.1% -> yellow', C.levelByPct(25.1, 25, 50), 'warn');
+    eq('49.9% -> yellow', C.levelByPct(49.9, 25, 50), 'warn');
+    eq('50% boundary -> yellow', C.levelByPct(50, 25, 50), 'warn');
+    eq('50.1% -> red', C.levelByPct(50.1, 25, 50), 'crit');
+    eq('100% -> red', C.levelByPct(100, 25, 50), 'crit');
+    eq('pct null (base 0) -> none, no colour', C.levelByPct(null, 25, 50), 'none');
+    eq('pct undefined -> none', C.levelByPct(undefined, 25, 50), 'none');
+    eq('green empty -> none (pct mode off)', C.levelByPct(30, null, 50), 'none');
+    eq('green "" -> none', C.levelByPct(30, '', 50), 'none');
+    eq('yellow empty: 30% -> red (no yellow band)', C.levelByPct(30, 25, null), 'crit');
+    eq('yellow empty: 20% -> green', C.levelByPct(20, 25, null), 'good');
+    eq('yellow below green ignored: 30% -> red', C.levelByPct(30, 25, 10), 'crit');
+    eq('values as text "25"/"50": 40% -> yellow', C.levelByPct(40, '25', '50'), 'warn');
+
+    /* exact boundaries through remainingPct (what the page does) */
+    eq('remaining 25 of 100 -> green', C.levelByPct(C.remainingPct(25, 100), 25, 50), 'good');
+    eq('remaining 50 of 100 -> yellow', C.levelByPct(C.remainingPct(50, 100), 25, 50), 'warn');
+    eq('remaining 51 of 100 -> red', C.levelByPct(C.remainingPct(51, 100), 25, 50), 'crit');
+    eq('remaining 1 of 4 trucks (25%) -> green', C.levelByPct(C.remainingPct(1, 4), 25, 50), 'good');
+    eq('remaining 2 of 4 trucks (50%) -> yellow', C.levelByPct(C.remainingPct(2, 4), 25, 50), 'warn');
+    eq('base 0 -> none', C.levelByPct(C.remainingPct(0, 0), 25, 50), 'none');
+    eq('fictional weight 65% -> red', C.levelByPct(C.remainingPct(1300, 2000), 25, 50), 'crit');
+    eq('fictional trucks 55% -> red', C.levelByPct(C.remainingPct(33, 60), 25, 50), 'crit');
+
+    /* pctThresholdsSet decides which mode is used */
+    eq('pct mode on with 25', C.pctThresholdsSet(25), true);
+    eq('pct mode on with 0', C.pctThresholdsSet(0), true);
+    eq('pct mode off with null', C.pctThresholdsSet(null), false);
+    eq('pct mode off with ""', C.pctThresholdsSet(''), false);
+    eq('pct mode off with negative', C.pctThresholdsSet(-1), false);
+
+    /* the truck base is Outbound: summarize() on a 17-row day, remaining from the last row with data */
+    var rows = [];
+    for (var i = 0; i < 17; i++) {
+      var h = 7 + i, per = C.pad(h) + ':01-' + C.pad(h + 1) + ':00';
+      rows.push({ period: per, workloadPct: 0, weightKg: 0, completeKg: 0, remainingKg: 0, completePct: 0,
+        truckCheckIn: 0, truckOutbound: 0, truckComplete: 0, truckRemaining: 0, truckCompletePct: 0 });
+    }
+    rows[2].weightKg = 1000000; rows[2].completeKg = 200000; rows[2].remainingKg = 800000;
+    rows[2].truckCheckIn = 30; rows[2].truckOutbound = 20; rows[2].truckComplete = 5; rows[2].truckRemaining = 15;
+    rows[3].weightKg = 1000000; rows[3].completeKg = 1300000; rows[3].remainingKg = 500000;
+    rows[3].truckCheckIn = 50; rows[3].truckOutbound = 20; rows[3].truckComplete = 25; rows[3].truckRemaining = 10;
+    var T = C.summarize(rows).totals;
+    eq('weight pct = remaining 500 t / total 2000 t = 25% -> green', C.levelByPct(C.remainingPct(T.remainingKg, T.weightKg), 25, 50), 'good');
+    eq('Check in total 80 differs from Outbound 40', [T.truckCheckIn, T.truckOutbound], [80, 40]);
+    eq('truck pct = remaining 10 / Outbound 40 = 25% (not / Check in 80)', C.remainingPct(T.truckRemaining, T.truckOutbound), 25);
+    eq('truck done pct uses the same base: done 30 / Outbound 40 = 75', T.truckCompletePct, 30 / 40 * 100);
+    var empty = C.summarize(rows.map(function (r) { var c = {}; for (var k in r) c[k] = typeof r[k] === 'number' ? 0 : r[k]; return c; })).totals;
+    eq('empty day: weight pct null', C.remainingPct(empty.remainingKg, empty.weightKg), null);
+    eq('empty day: truck pct null', C.remainingPct(empty.truckRemaining, empty.truckOutbound), null);
+
+    /* old ton / truck thresholds still work unchanged */
+    eq('levelByThreshold empty -> none', C.levelByThreshold(900, null, null), 'none');
+    eq('levelByThreshold 900 >= 800 -> warn', C.levelByThreshold(900, 800, 1000), 'warn');
+    eq('levelByThreshold 1000 >= red -> crit', C.levelByThreshold(1000, 800, 1000), 'crit');
+    eq('levelByThreshold below -> good', C.levelByThreshold(100, 800, 1000), 'good');
+  } catch (e) { fail++; lines.push('EXCEPTION ' + e.message); }
+  document.getElementById('out').textContent = 'CALC RESULT pass=' + pass + ' fail=' + fail + ' ' + lines.join(' | ');
+})();
+</script>
+</body></html>

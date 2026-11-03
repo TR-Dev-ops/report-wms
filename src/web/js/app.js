@@ -16,7 +16,8 @@
     refreshMinutes: 5,
     staleGraceMinutes: 2,
     targetEndTime: '',
-    remainingTonsYellow: null, remainingTonsRed: null,
+    remainingPctGreenMax: 25, remainingPctYellowMax: 50,      // เกณฑ์หลักการ์ด "ค้าง": % ของงานรวมวันนี้ (เจ้าของกำหนด 2026-11-03)
+    remainingTonsYellow: null, remainingTonsRed: null,         // เกณฑ์ตัน/คันเดิม ใช้เมื่อ remainingPctGreenMax ว่างเท่านั้น
     remainingTrucksYellow: null, remainingTrucksRed: null,
     forecastYellowWithinMinutes: null,
     sampleClock: ''
@@ -149,8 +150,17 @@
       v.curIdx = C.currentRowIndex(v.dataMin);
       v.lastShown = Math.max(v.lastIdx, v.curIdx);
       v.fc = C.forecast(d.rows, v.T, v.dataMin);
-      v.wLevel = C.levelByThreshold(v.T.remainingKg / 1000, cfg.remainingTonsYellow, cfg.remainingTonsRed);
-      v.tLevel = C.levelByThreshold(v.T.truckRemaining, cfg.remainingTrucksYellow, cfg.remainingTrucksRed);
+      /* การ์ด "ค้าง": แบบ % เป็นหลัก (น้ำหนัก ÷ งานรวมวันนี้, รถ ÷ Outbound) ; ถ้า remainingPctGreenMax ว่าง ใช้เกณฑ์ตัน/คันเดิม */
+      v.pctMode = C.pctThresholdsSet(cfg.remainingPctGreenMax);
+      v.wRemPct = C.remainingPct(v.T.remainingKg, v.T.weightKg);
+      v.tRemPct = C.remainingPct(v.T.truckRemaining, v.T.truckOutbound);
+      if (v.pctMode) {
+        v.wLevel = C.levelByPct(v.wRemPct, cfg.remainingPctGreenMax, cfg.remainingPctYellowMax);
+        v.tLevel = C.levelByPct(v.tRemPct, cfg.remainingPctGreenMax, cfg.remainingPctYellowMax);
+      } else {
+        v.wLevel = C.levelByThreshold(v.T.remainingKg / 1000, cfg.remainingTonsYellow, cfg.remainingTonsRed);
+        v.tLevel = C.levelByThreshold(v.T.truckRemaining, cfg.remainingTrucksYellow, cfg.remainingTrucksRed);
+      }
       v.fcLevel = v.fc.ok ? C.forecastLevel(v.fc.judgeEtaMin, cfg.targetMin, cfg.forecastYellowWithinMinutes) : 'none';  // ตัดสินสีด้วยแบบที่ช้ากว่า
     }
     return withPreview(v);
@@ -190,6 +200,19 @@
     if (r !== null) parts.push('แดง ≥ ' + fmt(r));
     return 'เกณฑ์: ' + parts.join(' · ') + ' ' + unit;
   }
+  function pctNote(g, y) {
+    g = C.optNum(g); y = C.optNum(y);
+    var parts = ['≤' + nfMax1.format(g) + '% เขียว'];
+    if (y !== null && y >= g) parts.push('≤' + nfMax1.format(y) + '% เหลือง');
+    return 'เกณฑ์สี: ' + parts.join(' · ') + ' · เกินแดง';
+  }
+  /* ชิปแบบ %: บอก % ค้างปัจจุบัน ; ฐานเป็น 0 หรือไม่ใช่ตัวเลข = เทา ไม่ใส่สี */
+  var PCT_NONE_TEXT = 'คำนวณ % ไม่ได้';                       // สั้นให้พอดีการ์ดรถ ; เหตุผลอยู่ใน title
+  var PCT_NONE_TITLE = 'คำนวณ % ไม่ได้ เพราะฐานเป็น 0 จึงไม่หาร และไม่ใส่สี';
+  function pctChip(level, pct) {
+    if (pct === null) return chipHtml([IC.dash, PCT_NONE_TEXT]);
+    return chipHtml([level === 'good' ? IC.check : IC.alert, 'ค้าง ' + nf1.format(pct) + '%']);
+  }
 
   function renderKpis(v) {
     var T = v.T, cfg = v.cfg;
@@ -206,6 +229,15 @@
     $('tBar').style.width = Math.min(100, T.truckCompletePct) + '%';
     $('wRemTile').setAttribute('data-level', v.wLevel);
     $('tRemTile').setAttribute('data-level', v.tLevel);
+    if (v.pctMode) {
+      $('wChip').innerHTML = pctChip(v.wLevel, v.wRemPct);
+      $('tChip').innerHTML = pctChip(v.tLevel, v.tRemPct);
+      $('wChip').title = v.wRemPct === null ? PCT_NONE_TITLE + ' (งานรวมวันนี้ = 0)' : '% ค้าง = ค้าง ÷ งานรวมวันนี้ (ตัน)';
+      $('tChip').title = v.tRemPct === null ? PCT_NONE_TITLE + ' (รถ Outbound = 0)' : '% ค้าง = รถค้าง ÷ รถ Outbound (ฐานเดียวกับ % เสร็จของรถ)';
+      $('thW').textContent = $('thT').textContent = pctNote(cfg.remainingPctGreenMax, cfg.remainingPctYellowMax);
+      return;
+    }
+    $('wChip').title = $('tChip').title = '';
     $('wChip').innerHTML = chipHtml(REM_CHIP[v.wLevel]);
     $('tChip').innerHTML = chipHtml(REM_CHIP[v.tLevel]);
     $('thW').textContent = thresholdNote(cfg.remainingTonsYellow, cfg.remainingTonsRed, 'ตัน', function (n) { return nfMax1.format(n); });

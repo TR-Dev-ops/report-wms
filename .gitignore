@@ -36,3 +36,6 @@ samples/
 *.env
 # forecast history written by the fetcher (real data, for later analysis) - also covered by logs/
 *.local.jsonl
+
+# ---- Phase 3: LAN view - real LAN ranges of the office (copy of lan.example.json) ----
+src/lan.local.json

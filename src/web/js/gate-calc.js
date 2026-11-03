@@ -174,6 +174,11 @@
     if (r.status === 'session') return { kind: 'session', reason: r.message || '' };
     if (r.status === 'login_failed') return { kind: 'login', reason: r.message || '' };
     if (r.status === 'unknown_wh') return { kind: 'unknown', reason: '' };
+    if (r.status === 'quota_too_small') return { kind: 'quota', reason: '' };   /* โหมดแลน: คลิกนี้ต้องใช้คำขอ WMS มากกว่าโควตารวมทั้งนาที */
+    if (r.status === 'rate_limited') {   /* ระยะ 3 โหมดแลน: กดถี่เกินโควตา (server ไม่ได้เรียก WMS) */
+      var ra = typeof r.retryAfterSec === 'number' && isFinite(r.retryAfterSec) ? Math.ceil(r.retryAfterSec) : 60;
+      return { kind: 'rate', reason: '', retryAfterSec: Math.min(Math.max(ra, 1), 120) };
+    }
     if (r.status !== 'ok' && r.status !== 'partial') return { kind: 'error', reason: r.message || String(r.status) };
     var clean = function (list) {
       return list.filter(function (o) { return o && typeof o === 'object'; }).map(function (o) {
